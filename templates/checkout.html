@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5">
+    <h2 class="fw-bold mb-4"><i class="bi bi-bag-check me-2" style="color: #FF6500;"></i> Secure Checkout</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show mb-4" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('checkout') }}">
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card shadow-sm border-0 rounded-4 p-4 mb-4">
+                    <h5 class="fw-bold mb-3 text-dark"><i class="bi bi-geo-alt me-2 text-danger"></i> Delivery Information</h5>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Delivery Address / Pickup Location <span class="text-danger">*</span></label>
+                        <textarea class="form-control" name="delivery_address" rows="3" placeholder="Enter your street address, digital address, or delivery location in Ghana..." required>{{ current_user.name }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Delivery Method</label>
+                        <select class="form-select" name="delivery_method">
+                            <option value="Standard Delivery">Standard Doorstep Delivery</option>
+                            <option value="Express Delivery">Express Delivery</option>
+                            <option value="Seller Pickup">Pickup from Seller Store</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0 rounded-4 p-4">
+                    <h5 class="fw-bold mb-2 text-dark"><i class="bi bi-shield-lock me-2 text-success"></i> Manual Payment System</h5>
+                    <p class="text-muted small">After placing your order, you will be given exact payment instructions (Mobile Money / Bank details) for each seller. You can report your payment anytime.</p>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="card shadow-sm border-0 rounded-4 p-4 bg-white">
+                    <h5 class="fw-bold mb-3 text-dark">Order Summary</h5>
+                    {% for seller_id, items in seller_items.items() %}
+                        <div class="border-bottom pb-2 mb-2">
+                            <small class="fw-bold text-primary">Seller Subtotal</small>
+                            {% for i in items %}
+                            <div class="d-flex justify-content-between small">
+                                <span>{{ i.product.name }} (x{{ i.quantity }})</span>
+                                <span>GH₵ {{ "%.2f"|format(i.subtotal) }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                    
+                    <div class="d-flex justify-content-between mb-4 mt-3">
+                        <span class="fw-bold fs-5 text-dark">Total Amount</span>
+                        <span class="fw-bold fs-5 text-primary" style="color: #FF6500 !important;">GH₵ {{ "%.2f"|format(total_amount) }}</span>
+                    </div>
+
+                    <button type="submit" class="btn btn-lg w-100 fw-bold text-white shadow-sm" style="background-color: #FF6500; border: none;">
+                        Confirm & Place Order
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

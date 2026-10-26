@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- SECTION 2: COMPACT PROMOTIONAL CAROUSEL (Placed Top Like Inspiration) -->
+<div id="aidomartCarousel" class="carousel slide carousel-fade mb-4 shadow-sm aidomart-carousel" data-bs-ride="carousel" data-bs-interval="4500">
+    <div class="carousel-indicators">
+        <button type="button" data-bs-target="#aidomartCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
+        <button type="button" data-bs-target="#aidomartCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
+        <button type="button" data-bs-target="#aidomartCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
+        <button type="button" data-bs-target="#aidomartCarousel" data-bs-slide-to="3" aria-label="Slide 4"></button>
+    </div>
+    <div class="carousel-inner">
+        <div class="carousel-item active">
+            <img src="{{ url_for('static', filename='image/homepage/carousel/slide-01.jpg') }}" class="d-block w-100" alt="Slide 1">
+        </div>
+        <div class="carousel-item">
+            <img src="{{ url_for('static', filename='image/homepage/carousel/slide-02.jpg') }}" class="d-block w-100" alt="Slide 2">
+        </div>
+        <div class="carousel-item">
+            <img src="{{ url_for('static', filename='image/homepage/carousel/slide-03.jpg') }}" class="d-block w-100" alt="Slide 3">
+        </div>
+        <div class="carousel-item">
+            <img src="{{ url_for('static', filename='image/homepage/carousel/slide-04.jpg') }}" class="d-block w-100" alt="Slide 4">
+        </div>
+    </div>
+    <button class="carousel-control-prev" type="button" data-bs-target="#aidomartCarousel" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Previous</span>
+    </button>
+    <button class="carousel-control-next" type="button" data-bs-target="#aidomartCarousel" data-bs-slide="next">
+        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Next</span>
+    </button>
+</div>
+
+<!-- SECTION 3: BRIEF MARKETPLACE INTRO -->
+<section class="p-3 mb-4 bg-white rounded shadow-sm border text-center text-md-start">
+    <div class="row align-items-center">
+        <div class="col-lg-8">
+            <h1 class="h5 fw-bold text-navy mb-1" style="color: #0B192C;">Discover Products. Shop with Confidence. Connect with Sellers.</h1>
+            <p class="text-muted small mb-0">
+                AIDOMART brings customers and independent sellers together in one convenient online marketplace across Ghana. Explore products, compare options, and connect directly with sellers via WhatsApp.
+            </p>
+        </div>
+        <div class="col-lg-4 text-center mt-3 mt-lg-0">
+            <div class="d-flex justify-content-center justify-content-lg-end gap-2">
+                <a href="{{ url_for('shop') }}" class="btn btn-primary btn-sm fw-semibold">Explore Products</a>
+                <a href="{{ url_for('register') }}" class="btn btn-outline-primary btn-sm fw-semibold">Become a Seller</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- SECTION 4: FEATURED CATEGORIES -->
+<section id="categories-section" class="mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="h5 fw-bold text-navy m-0" style="color: #0B192C;">Featured Categories</h3>
+        <span class="text-muted small">Click a category to browse gallery</span>
+    </div>
+
+    <div class="row g-3 mb-4" id="category-cards-grid">
+        <!-- clothing -->
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="card h-100 shadow-sm border-0 category-card" onclick="loadCategory('clothing', 'Clothing')">
+                <img src="{{ url_for('static', filename='image/categories/clothing/photo_2026-09-30_17-57-11.jpg') }}" class="card-img-top object-fit-cover" alt="Clothing" style="height: 120px;">
+                <div class="card-body p-2 text-center d-flex flex-column">
+                    <h6 class="fw-bold mb-1" style="font-size: 0.85rem;">Clothing</h6>
+                    <p class="text-muted mb-2" style="font-size: 0.68rem; line-height: 1.1;">Explore everyday outfits and smart casual wear.</p>
+                    <span class="btn btn-outline-primary btn-xs mt-auto py-0" style="font-size: 0.68rem;">View Gallery</span>
+                </div>
+            </div>
+        </div>
+        <!-- electronics -->
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="card h-100 shadow-sm border-0 category-card" onclick="loadCategory('electronics', 'Electronics')">
+                <img src="{{ url_for('static', filename='image/categories/electronics/photo_2026-09-30_18-01-20.jpg') }}" class="card-img-top object-fit-cover" alt="Electronics" style="height: 120px;">
+                <div class="card-body p-2 text-center d-flex flex-column">
+                    <h6 class="fw-bold mb-1" style="font-size: 0.85rem;">Electronics</h6>
+                    <p class="text-muted mb-2" style="font-size: 0.68rem; line-height: 1.1;">Discover smartphones and electronic devices.</p>
+                    <span class="btn btn-outline-primary btn-xs mt-auto py-0" style="font-size: 0.68rem;">View Gallery</span>
+                </div>
+            </div>
+        </div>
+        <!-- shoes -->
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="card h-100 shadow-sm border-0 category-card" onclick="loadCategory('shoes', 'Shoes')">
+                <img src="{{ url_for('static', filename='image/categories/shoes/photo_2026-10-04_01-08-58.jpg') }}" class="card-img-top object-fit-cover" alt="Shoes" style="height: 120px;">
+                <div class="card-body p-2 text-center d-flex flex-column">
+                    <h6 class="fw-bold mb-1" style="font-size: 0.85rem;">Shoes</h6>
+                    <p class="text-muted mb-2" style="font-size: 0.68rem; line-height: 1.1;">Browse footwear for everyday activities and work.</p>
+                    <span class="btn btn-outline-primary btn-xs mt-auto py-0" style="font-size: 0.68rem;">View Gallery</span>
+                </div>
+            </div>
+        </div>
+        <!-- sneakers -->
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="card h-100 shadow-sm border-0 category-card" onclick="loadCategory('sneakers', 'Sneakers')">
+                <img src="{{ url_for('static', filename='image/categories/sneakers/photo_2026-09-30_18-00-10.jpg') }}" class="card-img-top object-fit-cover" alt="Sneakers" style="height: 120px;">
+                <div class="card-body p-2 text-center d-flex flex-column">
+                    <h6 class="fw-bold mb-1" style="font-size: 0.85rem;">Sneakers</h6>
+                    <p class="text-muted mb-2" style="font-size: 0.68rem; line-height: 1.1;">Explore trendy sneakers and athletic gear.</p>
+                    <span class="btn btn-outline-primary btn-xs mt-auto py-0" style="font-size: 0.68rem;">View Gallery</span>
+                </div>
+            </div>
+        </div>
+        <!-- Accessories -->
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="card h-100 shadow-sm border-0 category-card" onclick="loadCategory('Accessories', 'Accessories')">
+                <img src="{{ url_for('static', filename='image/categories/Accessories/photo_2026-10-04_01-14-45.jpg') }}" class="card-img-top object-fit-cover" alt="Accessories" style="height: 120px;">
+                <div class="card-body p-2 text-center d-flex flex-column">
+                    <h6 class="fw-bold mb-1" style="font-size: 0.85rem;">Accessories</h6>
+                    <p class="text-muted mb-2" style="font-size: 0.68rem; line-height: 1.1;">Find bags, backpacks, and personal items.</p>
+                    <span class="btn btn-outline-primary btn-xs mt-auto py-0" style="font-size: 0.68rem;">View Gallery</span>
+                </div>
+            </div>
+        </div>
+        <!-- watches -->
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="card h-100 shadow-sm border-0 category-card" onclick="loadCategory('watches', 'Watches')">
+                <img src="{{ url_for('static', filename='image/categories/watches/photo_2026-09-30_17-58-04.jpg') }}" class="card-img-top object-fit-cover" alt="Watches" style="height: 120px;">
+                <div class="card-body p-2 text-center d-flex flex-column">
+                    <h6 class="fw-bold mb-1" style="font-size: 0.85rem;">Watches</h6>
+                    <p class="text-muted mb-2" style="font-size: 0.68rem; line-height: 1.1;">Discover wristwatches for professional attire.</p>
+                    <span class="btn btn-outline-primary btn-xs mt-auto py-0" style="font-size: 0.68rem;">View Gallery</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inline Category Viewing Area -->
+    <div id="category-browse-container" class="card shadow-sm border-0 p-3 bg-white mb-4" style="display: none;">
+        <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+            <h5 id="active-category-title" class="fw-bold text-navy m-0" style="color: #0B192C;">Category Gallery</h5>
+            <button class="btn btn-outline-dark btn-sm py-0 px-2" onclick="closeCategoryView()"><i class="fa-solid fa-arrow-left me-1"></i> Back</button>
+        </div>
+        <div class="row g-2" id="category-images-grid">
+            <!-- Dynamically populated images go here -->
+        </div>
+    </div>
+</section>
+
+<!-- SECTION 5: PROMOTIONAL BANNERS -->
+<section class="mb-4">
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm overflow-hidden">
+                <img src="{{ url_for('static', filename='image/homepage/promotional-banners/promotion-01.jpg') }}" class="w-100 promo-banner-img" alt="Promotion 1">
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm overflow-hidden">
+                <img src="{{ url_for('static', filename='image/homepage/promotional-banners/promotion-02.jpg') }}" class="w-100 promo-banner-img" alt="Promotion 2">
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- SECTION 6: FEATURED PRODUCTS -->
+<section class="mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="h5 fw-bold text-navy m-0" style="color: #0B192C;">Featured Products</h3>
+        <a href="{{ url_for('shop') }}" class="btn btn-outline-primary btn-sm">View All</a>
+    </div>
+
+    <div class="row g-3">
+        {% if products %}
+            {% for p in products %}
+            <div class="col-6 col-md-3">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="bg-light text-center p-2" style="height: 160px;">
+                        <img src="{{ url_for('static', filename=p.image_filename) if p.image_filename else url_for('static', filename='image/branding/favicon.png') }}" class="w-100 h-100 object-fit-contain rounded" alt="{{ p.name }}">
+                    </div>
+                    <div class="card-body p-2.5 d-flex flex-column">
+                        <h6 class="card-title fw-bold text-truncate mb-1" style="font-size: 0.9rem;">{{ p.name }}</h6>
+                        <p class="text-muted small mb-1" style="font-size: 0.75rem;">{{ p.category }}</p>
+                        <p class="text-primary fw-bold mb-2" style="font-size: 0.95rem;">GH₵ {{ "%.2f"|format(p.price) }}</p>
+                        <a href="{{ url_for('product_detail', product_id=p.id) }}" class="btn btn-outline-primary btn-sm mt-auto py-1" style="font-size: 0.75rem;">View Details</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="alert alert-light border text-center py-4 shadow-sm small">
+                    <h5 class="fw-bold text-dark fs-6">Products Are Coming Soon</h5>
+                    <p class="text-muted mb-0 small">Sellers are preparing their storefronts and product listings.</p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- SECTION 7: FEATURED SELLERS (Updated with Location, What They Sell, and Social Handles) -->
+<section class="mb-4">
+    <div class="text-center mb-3">
+        <h3 class="h5 fw-bold text-navy" style="color: #0B192C;">Explore Verified Sellers</h3>
+        <p class="text-muted small mb-0">Connect directly with trusted independent businesses on AIDOMART.</p>
+    </div>
+
+    <div class="row g-3">
+        {% if sellers %}
+            {% for s in sellers %}
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0 p-3 h-100 d-flex flex-column">
+                    <div class="d-flex align-items-center mb-3">
+                        <img src="{{ url_for('static', filename=s.profile_image) if s.profile_image else url_for('static', filename='image/branding/favicon.png') }}" alt="" class="rounded-circle border me-3 shadow-sm" style="width: 50px; height: 50px; object-fit: cover;">
+                        <div class="text-start">
+                            <h6 class="fw-bold mb-0 text-dark">{{ s.business_name }} <span class="text-success small" title="Verified Store"><i class="bi bi-patch-check-fill"></i></span></h6>
+                            <span class="badge bg-success" style="font-size: 0.65rem;">Verified Seller</span>
+                        </div>
+                    </div>
+                    
+                    <div class="text-start small mb-3">
+                        <p class="text-muted mb-1"><i class="bi bi-geo-alt-fill text-danger me-1"></i> <strong>Location:</strong> {{ s.shop_location or 'Ghana' }}</p>
+                        <p class="text-muted mb-1"><i class="bi bi-tags-fill text-primary me-1"></i> <strong>Sells:</strong> {{ s.what_they_sell or 'General Merchandise' }}</p>
+                        {% if s.social_handles %}
+                        <p class="text-muted mb-1"><i class="bi bi-share-fill text-info me-1"></i> <strong>Socials:</strong> {{ s.social_handles }}</p>
+                        {% endif %}
+                    </div>
+
+                    <a href="https://wa.me/{{ s.whatsapp_number }}" target="_blank" class="whatsapp-badge justify-content-center mx-auto mt-auto w-100">
+                        <i class="fa-brands fa-whatsapp"></i> Contact via WhatsApp
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="alert alert-light border text-center py-3 text-muted small">
+                    Verified seller storefronts will appear here as businesses complete verification.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- SECTION 8: CALL TO ACTION FOR SELLERS -->
+<section class="p-4 mb-4 text-white rounded shadow-sm text-center" style="background-color: #0B192C;">
+    <div class="container">
+        <h3 class="h5 fw-bold mb-2">Have Products to Sell? Join AIDOMART.</h3>
+        <p class="col-md-8 mx-auto small text-light mb-3">
+            Create your storefront, showcase your products and connect with customers looking for what you offer through one convenient marketplace.
+        </p>
+        <a href="{{ url_for('register') }}" class="btn btn-primary btn-sm px-4 py-2 fw-bold shadow">Register as a Seller (Free)</a>
+    </div>
+</section>
+
+<!-- Inline Category Image Gallery Script -->
+<script>
+const categoryImages = {
+    clothing: [
+        "photo_2026-09-30_17-57-11.jpg", "photo_2026-09-30_17-57-20.jpg", "photo_2026-10-25_01-57-44.jpg",
+        "photo_2026-09-30_17-59-21.jpg", "photo_2026-09-30_17-59-24.jpg", "photo_2026-09-30_17-59-30.jpg",
+        "photo_2026-09-30_17-59-32.jpg", "photo_2026-10-25_01-57-22.jpg", "photo_2026-10-25_01-57-25.jpg",
+        "photo_2026-10-25_01-57-26.jpg", "photo_2026-10-25_01-57-29.jpg", "photo_2026-10-25_01-57-32.jpg",
+        "photo_2026-10-25_01-57-35.jpg", "photo_2026-10-25_01-57-38.jpg", "photo_2026-10-25_01-57-41.jpg",
+        "photo_2026-10-25_01-57-44.jpg"
+    ],
+    electronics: [
+        "photo_2026-09-30_18-01-20.jpg", "photo_2026-09-30_18-01-23.jpg",
+        "photo_2026-09-30_18-01-26.jpg", "photo_2026-09-30_18-01-29.jpg"
+    ],
+    shoes: [
+        "photo_2026-10-04_01-08-58.jpg", "photo_2026-10-04_01-09-01.jpg", "photo_2026-10-04_01-09-04.jpg",
+        "photo_2026-10-04_01-09-06.jpg", "photo_2026-10-04_01-09-09.jpg", "photo_2026-10-04_01-09-12.jpg",
+        "photo_2026-10-04_01-09-15.jpg", "photo_2026-10-04_01-09-18.jpg", "photo_2026-10-04_01-09-21.jpg"
+    ],
+    sneakers: [
+        "photo_2026-09-30_18-00-10.jpg", "photo_2026-09-30_18-00-13.jpg", "photo_2026-09-30_18-00-15.jpg",
+        "photo_2026-09-30_18-00-18.jpg", "photo_2026-09-30_18-00-21.jpg", "photo_2026-09-30_18-00-23.jpg",
+        "photo_2026-09-30_18-00-27.jpg", "photo_2026-09-30_18-00-30.jpg"
+    ],
+    Accessories: [
+        "photo_2026-10-04_01-14-45.jpg", "photo_2026-10-04_01-14-48.jpg", "photo_2026-10-04_01-14-50.jpg",
+        "photo_2026-10-04_01-14-53.jpg", "photo_2026-10-04_01-14-57.jpg"
+    ],
+    watches: [
+        "photo_2026-09-30_17-58-04.jpg", "photo_2026-09-30_17-58-07.jpg", "photo_2026-09-30_17-58-10.jpg",
+        "photo_2026-09-30_17-58-12.jpg", "photo_2026-09-30_17-58-15.jpg", "photo_2026-09-30_17-58-18.jpg",
+        "photo_2026-09-30_17-58-21.jpg", "photo_2026-09-30_17-58-24.jpg"
+    ]
+};
+
+function loadCategory(folderName, displayName) {
+    const container = document.getElementById('category-images-grid');
+    const title = document.getElementById('active-category-title');
+    const browseBox = document.getElementById('category-browse-container');
+    
+    title.textContent = `${displayName} Gallery`;
+    container.innerHTML = '';
+    
+    const images = categoryImages[folderName] || [];
+    if (images.length === 0) {
+        container.innerHTML = '<div class="col-12 text-center text-muted py-3">No images found for this category.</div>';
+    } else {
+        images.forEach(imgName => {
+            const col = document.createElement('div');
+            col.className = 'col-6 col-md-3';
+            col.innerHTML = `
+                <div class="card shadow-sm border-0 h-100">
+                    <img src="/static/image/categories/${folderName}/${imgName}" class="card-img-top object-fit-cover" style="height: 140px;" alt="${displayName}">
+                    <div class="card-body p-2 text-center">
+                        <small class="text-muted" style="font-size: 0.75rem;">AIDOMART ${displayName}</small>
+                    </div>
+                </div>
+            `;
+            container.appendChild(col);
+        });
+    }
+    
+    browseBox.style.display = 'block';
+    browseBox.scrollIntoView({ behavior: 'smooth' });
+}
+
+function closeCategoryView() {
+    document.getElementById('category-browse-container').style.display = 'none';
+    document.getElementById('categories-section').scrollIntoView({ behavior: 'smooth' });
+}
+</script>
+
+{% endblock %}

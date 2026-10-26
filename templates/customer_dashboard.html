@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="p-4 rounded-4 shadow-sm text-white" style="background-color: #0B192C; border-left: 5px solid #FF6500;">
+                <h2 class="fw-bold mb-1"><i class="bi bi-person-circle me-2" style="color: #FF6500;"></i> Customer Dashboard</h2>
+                <p class="text-white-50 mb-0">Track your orders with your unique codes, review payment instructions, and view fulfillment statuses.</p>
+            </div>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show mb-4 shadow-sm" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-header bg-white py-3 px-4 border-bottom">
+            <h5 class="fw-bold mb-0 text-dark">Your Order History & Tracking</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Unique Order Code</th>
+                            <th>Date</th>
+                            <th>Total Amount</th>
+                            <th>Payment Status</th>
+                            <th>Live Tracking Status</th>
+                            <th class="text-end pe-4">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr>
+                            <td class="ps-4 fw-bold text-primary font-monospace">{{ order.order_reference }}</td>
+                            <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td class="fw-bold">GH₵ {{ "%.2f"|format(order.total_amount) }}</td>
+                            <td>
+                                <span class="badge {% if order.payment_status == 'Payment Confirmed' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                    {{ order.payment_status }}
+                                </span>
+                            </td>
+                            <td><span class="badge bg-info text-dark px-2 py-1"><i class="bi bi-truck me-1"></i> {{ order.status }}</span></td>
+                            <td class="text-end pe-4">
+                                <a href="{{ url_for('order_details', order_id=order.id) }}" class="btn btn-sm btn-outline-dark">Track & Pay Details</a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">You have not placed any orders yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

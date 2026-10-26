@@ -1,0 +1,84 @@
+:root {
+    --primary-navy: #0B192C;
+    --accent-orange: #FF6500;
+    --light-bg: #F5F7FA;
+    --text-dark: #1E293B;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--light-bg);
+    color: var(--text-dark);
+    margin: 0;
+    padding: 0;
+}
+
+.navbar {
+    background-color: var(--primary-navy) !important;
+}
+
+.btn-primary {
+    background-color: var(--accent-orange);
+    border-color: var(--accent-orange);
+}
+
+.btn-primary:hover {
+    background-color: #e05b00;
+    border-color: #e05b00;
+}
+
+.badge-notification {
+    position: absolute;
+    top: -5px;
+    right: -10px;
+    background-color: var(--accent-orange);
+    color: white;
+    border-radius: 50%;
+    padding: 3px 6px;
+    font-size: 0.75rem;
+}
+
+.whatsapp-badge {
+    background-color: #25D366;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    text-decoration: none;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.whatsapp-badge:hover {
+    background-color: #1EBE5D;
+    color: white;
+}
+
+/* Compact Promotional Carousel (Ad Banner Role) */
+.aidomart-carousel {
+    max-height: 260px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.aidomart-carousel .carousel-item img {
+    height: 260px;
+    object-fit: cover;
+    object-position: center;
+}
+
+.promo-banner-img {
+    height: 160px;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+@media (max-width: 768px) {
+    .aidomart-carousel, .aidomart-carousel .carousel-item img {
+        height: 160px !important;
+    }
+    .promo-banner-img {
+        height: 120px;
+    }
+}

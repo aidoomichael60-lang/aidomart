@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0 p-4 mb-4">
+            <div class="d-flex align-items-center mb-3">
+                <img src="{{ url_for('static', filename='image/branding/logo.png') }}" alt="Logo" height="30" class="me-2 rounded bg-white p-1 border">
+                <h3 class="fw-bold text-navy m-0" style="color: #0B192C;">AIDOMART Help & Support</h3>
+            </div>
+            <p class="text-muted small">
+                Need help with AIDOMART? Select the reason for your enquiry and provide the details below so our administrator can understand your concern.
+            </p>
+            
+            <!-- Direct WhatsApp Contact Button -->
+            <div class="card bg-light border-0 p-3 my-3 text-center">
+                <h6 class="fw-bold mb-2">Instant Support via WhatsApp</h6>
+                <div>
+                    <a href="{{ admin.whatsapp_link }}" target="_blank" class="whatsapp-badge py-2 px-3 fs-6">
+                        <i class="fa-brands fa-whatsapp fa-lg"></i> Contact Admin on WhatsApp ({{ admin.whatsapp_number }})
+                    </a>
+                </div>
+                <small class="text-muted mt-2">Administrator: {{ admin.name }} ({{ admin.display_name }})</small>
+            </div>
+
+            <hr class="my-4">
+
+            <h5 class="fw-bold mb-3">Submit a Support Enquiry Ticket</h5>
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Full Name *</label>
+                    <input type="text" name="full_name" class="form-control" value="{{ current_user.name if current_user.is_authenticated else '' }}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Email Address *</label>
+                    <input type="email" name="email" class="form-control" value="{{ current_user.email if current_user.is_authenticated else '' }}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Reason for Contacting Administrator *</label>
+                    <select name="issue_category" class="form-select" required>
+                        <option value="" disabled selected>-- Select an enquiry reason --</option>
+                        <option value="Account Registration or Login Problem">1. Account Registration or Login Problem</option>
+                        <option value="Account Access or Profile Issue">2. Account Access or Profile Issue</option>
+                        <option value="Order or Delivery Issue">3. Order or Delivery Issue</option>
+                        <option value="Payment Verification Enquiry">4. Payment Verification Enquiry</option>
+                        <option value="Seller Complaint">5. Seller Complaint</option>
+                        <option value="Report a Suspicious Seller">6. Report a Suspicious Seller</option>
+                        <option value="Report a Suspicious or Misleading Product Listing">7. Report a Suspicious or Misleading Product Listing</option>
+                        <option value="Product Information or Listing Issue">8. Product Information or Listing Issue</option>
+                        <option value="Technical Problem with the Website">9. Technical Problem with the Website</option>
+                        <option value="Privacy or Personal Information Request">10. Privacy or Personal Information Request</option>
+                        <option value="Report Inappropriate Content">11. Report Inappropriate Content</option>
+                        <option value="Seller Registration or Verification Enquiry">12. Seller Registration or Verification Enquiry</option>
+                        <option value="General Question">13. General Question</option>
+                        <option value="Suggestion or Feedback">14. Suggestion or Feedback</option>
+                        <option value="Other">15. Other</option>
+                    </select>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-semibold small">Order Reference (Optional)</label>
+                        <input type="text" name="order_reference" class="form-control" placeholder="e.g. Order #104">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-semibold small">Seller / Product Ref (Optional)</label>
+                        <input type="text" name="seller_product_ref" class="form-control" placeholder="e.g. Store name or product">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Description of the Issue *</label>
+                    <textarea name="description" class="form-control" rows="4" placeholder="Provide complete details about your concern..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Submit Enquiry Ticket</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

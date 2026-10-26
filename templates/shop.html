@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2 class="fw-bold text-dark"><i class="bi bi-grid me-2" style="color: #FF6500;"></i> Marketplace Shop</h2>
+            <p class="text-muted">Browse authentic products from verified independent vendors across Ghana.</p>
+        </div>
+        <div class="col-md-4">
+            <form action="{{ url_for('shop') }}" method="GET" class="d-flex">
+                <input type="text" class="form-control me-2" name="q" placeholder="Search products..." value="{{ request.args.get('q', '') }}">
+                <button type="submit" class="btn btn-outline-dark">Search</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        {% for product in products %}
+        <div class="col-sm-6 col-md-4 col-lg-3">
+            <div class="card h-100 border-0 shadow-sm rounded-4 overflow-hidden position-relative">
+                <div class="bg-light text-center p-3" style="height: 200px;">
+                    <img src="{{ url_for('static', filename=product.image_filename) if product.image_filename else url_for('static', filename='image/branding/favicon.png') }}" alt="{{ product.name }}" class="w-100 h-100 object-fit-contain rounded-3">
+                </div>
+                <div class="card-body d-flex flex-column p-3">
+                    <span class="badge bg-light text-dark border mb-2 align-self-start">{{ product.category }}</span>
+                    <h5 class="fw-bold text-dark mb-1 text-truncate">{{ product.name }}</h5>
+                    <p class="text-muted small mb-2">
+                        Sold by: {{ product.seller_profile_ref.business_name }}
+                        {% if product.seller_profile_ref.is_verified %}
+                            <span class="text-success ms-1" title="Verified Store"><i class="bi bi-patch-check-fill"></i></span>
+                        {% endif %}
+                    </p>
+                    <div class="mt-auto d-flex justify-content-between align-items-center">
+                        <span class="fw-bold fs-5" style="color: #FF6500;">GH₵ {{ "%.2f"|format(product.price) }}</span>
+                        <a href="{{ url_for('product_detail', product_id=product.id) }}" class="btn btn-sm btn-outline-dark fw-semibold">View Details</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12 text-center py-5">
+            <h4 class="text-muted">No products found matching your search.</h4>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

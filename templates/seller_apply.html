@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-7">
+            <div class="card shadow-lg border-0 rounded-4 overflow-hidden">
+                <div class="card-header text-center py-4 text-white" style="background-color: #0B192C; border-bottom: 3px solid #FF6500;">
+                    <h3 class="fw-bold mb-1"><i class="bi bi-shop me-2" style="color: #FF6500;"></i> Seller Profile & Business Details</h3>
+                    <p class="text-white-50 small mb-0">Provide your store information, essential details, and profile logo to get verified.</p>
+                </div>
+
+                <div class="card-body p-4 p-md-5 bg-white">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} alert-dismissible fade show mb-4 shadow-sm" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    </with>
+
+                    <form method="POST" action="{{ url_for('seller_apply') }}" enctype="multipart/form-data">
+                        <div class="mb-3 text-center">
+                            {% if seller and seller.profile_image %}
+                                <img src="{{ url_for('static', filename=seller.profile_image) }}" alt="Store Profile" class="rounded-circle border shadow-sm mb-3" style="width: 90px; height: 90px; object-fit: cover;">
+                            {% endif %}
+                            <div>
+                                <label for="profile_image" class="form-label fw-semibold text-dark">Store Profile Picture / Logo</label>
+                                <input type="file" class="form-control" id="profile_image" name="profile_image" accept="image/*">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="business_name" class="form-label fw-semibold text-dark">Business / Store Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="business_name" name="business_name" value="{{ seller.business_name if seller else '' }}" placeholder="e.g. Home Of Styles" required>
+                            <div class="form-text">Must be different from your personal user account name.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="whatsapp_number" class="form-label fw-semibold text-dark">WhatsApp Number <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="whatsapp_number" name="whatsapp_number" value="{{ seller.whatsapp_number if seller else '' }}" placeholder="e.g. 0205283752" required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="business_description" class="form-label fw-semibold text-dark">Business Description & Essential Details <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="business_description" name="business_description" rows="3" placeholder="Tell buyers about what you sell, your specialties, and store policies..." required>{{ seller.business_description if seller else '' }}</textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-lg w-100 fw-bold text-white rounded-3 shadow-sm" style="background-color: #FF6500; border: none;">
+                            Save & Submit for Admin Verification
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

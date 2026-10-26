@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-navy" style="color: #0B192C;">Manage Support Enquiries</h2>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-dark btn-sm"><i class="fa-solid fa-arrow-left me-1"></i> Back to Dashboard</a>
+    </div>
+
+    <!-- Status Filters -->
+    <div class="mb-4">
+        <a href="{{ url_for('admin_enquiries', status='All') }}" class="btn btn-sm {% if current_status == 'All' %}btn-primary{% else %}btn-outline-secondary{% endif %} me-1">All</a>
+        <a href="{{ url_for('admin_enquiries', status='New') }}" class="btn btn-sm {% if current_status == 'New' %}btn-primary{% else %}btn-outline-secondary{% endif %} me-1">New</a>
+        <a href="{{ url_for('admin_enquiries', status='In Progress') }}" class="btn btn-sm {% if current_status == 'In Progress' %}btn-primary{% else %}btn-outline-secondary{% endif %} me-1">In Progress</a>
+        <a href="{{ url_for('admin_enquiries', status='Awaiting User Response') }}" class="btn btn-sm {% if current_status == 'Awaiting User Response' %}btn-primary{% else %}btn-outline-secondary{% endif %} me-1">Awaiting User Response</a>
+        <a href="{{ url_for('admin_enquiries', status='Resolved') }}" class="btn btn-sm {% if current_status == 'Resolved' %}btn-primary{% else %}btn-outline-secondary{% endif %} me-1">Resolved</a>
+        <a href="{{ url_for('admin_enquiries', status='Closed') }}" class="btn btn-sm {% if current_status == 'Closed' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Closed</a>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-dark" style="background-color: #0B192C;">
+                        <tr>
+                            <th>Ref #</th>
+                            <th>Date</th>
+                            <th>User / Email</th>
+                            <th>Category Reason</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if tickets %}
+                            {% for t in tickets %}
+                            <tr>
+                                <td class="fw-bold text-primary">{{ t.reference_number }}</td>
+                                <td class="small text-muted">{{ t.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <strong>{{ t.full_name }}</strong><br>
+                                    <small class="text-muted">{{ t.email }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ t.issue_category }}</span>
+                                    {% if t.order_reference %}<br><small class="text-muted">Order: {{ t.order_reference }}</small>{% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge {% if t.status == 'New' %}bg-danger{% elif t.status == 'Resolved' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                        {{ t.status }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#ticketModal{{ t.id }}">Manage</button>
+                                </td>
+                            </tr>
+
+                            <!-- Management Modal -->
+                            <div class="modal fade" id="ticketModal{{ t.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <form action="{{ url_for('update_enquiry', ticket_id=t.id) }}" method="POST">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title fw-bold">Enquiry #{{ t.reference_number }}</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <p class="small text-muted mb-2">Submitted on {{ t.created_at.strftime('%Y-%m-%d %H:%M') }} by {{ t.full_name }} ({{ t.email }})</p>
+                                                <p><strong>Reason:</strong> {{ t.issue_category }}</p>
+                                                {% if t.order_reference %}<p><strong>Order Ref:</strong> {{ t.order_reference }}</p>{% endif %}
+                                                <div class="p-3 bg-light rounded mb-3">
+                                                    <strong>Description:</strong>
+                                                    <p class="mb-0 small text-muted">{{ t.description }}</p>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-semibold">Update Status</label>
+                                                    <select name="status" class="form-select" required>
+                                                        <option value="New" {% if t.status == 'New' %}selected{% endif %}>New</option>
+                                                        <option value="In Progress" {% if t.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                                                        <option value="Awaiting User Response" {% if t.status == 'Awaiting User Response' %}selected{% endif %}>Awaiting User Response</option>
+                                                        <option value="Resolved" {% if t.status == 'Resolved' %}selected{% endif %}>Resolved</option>
+                                                        <option value="Closed" {% if t.status == 'Closed' %}selected{% endif %}>Closed</option>
+                                                    </select>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-semibold">Private Admin Notes</label>
+                                                    <textarea name="admin_notes" class="form-control" rows="3" placeholder="Add internal notes visible only to admins...">{{ t.admin_notes or '' }}</textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                                                <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">No support enquiries found.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

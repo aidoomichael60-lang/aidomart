@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-9 col-lg-8">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-header text-white py-3 px-4 d-flex justify-content-between align-items-center" style="background-color: #0B192C;">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-wallet2 me-2" style="color: #FF6500;"></i> Manual Payment Settings</h5>
+                    <a href="{{ url_for('seller_dashboard') }}" class="btn btn-sm btn-outline-light">Back to Dashboard</a>
+                </div>
+                <div class="card-body p-4 p-md-5 bg-white">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} alert-dismissible fade show mb-4" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <form method="POST" action="{{ url_for('seller_payment_settings') }}">
+                        <h5 class="fw-bold text-dark mb-3"><i class="bi bi-phone me-2 text-primary"></i> 1. Mobile Money Details</h5>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Provider</label>
+                                <select class="form-select" name="momo_provider">
+                                    <option value="MTN Mobile Money" {% if seller.momo_provider == 'MTN Mobile Money' %}selected{% endif %}>MTN Mobile Money</option>
+                                    <option value="Telecel Cash" {% if seller.momo_provider == 'Telecel Cash' %}selected{% endif %}>Telecel Cash</option>
+                                    <option value="AT Money" {% if seller.momo_provider == 'AT Money' %}selected{% endif %}>AT Money</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Registered Account Name</label>
+                                <input type="text" class="form-control" name="momo_account_name" value="{{ seller.momo_account_name or '' }}" placeholder="e.g. John Doe">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Wallet Number</label>
+                                <input type="text" class="form-control" name="momo_number" value="{{ seller.momo_number or '' }}" placeholder="e.g. 0241234567">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">MoMo Payment Instructions</label>
+                                <textarea class="form-control" name="momo_instructions" rows="2" placeholder="Dial *170# ...">{{ seller.momo_instructions or '' }}</textarea>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <h5 class="fw-bold text-dark mb-3"><i class="bi bi-bank me-2 text-success"></i> 2. Bank Transfer Details</h5>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Bank Name</label>
+                                <input type="text" class="form-control" name="bank_name" value="{{ seller.bank_name or '' }}" placeholder="e.g. GCB Bank / Stanbic">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Account Name</label>
+                                <input type="text" class="form-control" name="bank_account_name" value="{{ seller.bank_account_name or '' }}" placeholder="e.g. Home Of Styles Ltd">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Account Number</label>
+                                <input type="text" class="form-control" name="bank_account_number" value="{{ seller.bank_account_number or '' }}" placeholder="e.g. 1234567890">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Branch</label>
+                                <input type="text" class="form-control" name="bank_branch" value="{{ seller.bank_branch or '' }}" placeholder="e.g. Circle Branch">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Bank Instructions</label>
+                                <textarea class="form-control" name="bank_instructions" rows="2">{{ seller.bank_instructions or '' }}</textarea>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Other Payment Information</label>
+                            <textarea class="form-control" name="other_payment_info" rows="2">{{ seller.other_payment_info or '' }}</textarea>
+                        </div>
+
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox" name="is_payment_active" id="is_payment_active" {% if seller.is_payment_active %}checked{% endif %}>
+                            <label class="form-check-label fw-semibold" for="is_payment_active">
+                                Active (Accept payments on orders)
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-lg w-100 fw-bold text-white shadow-sm" style="background-color: #FF6500; border: none;">
+                            Save Payment Settings
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

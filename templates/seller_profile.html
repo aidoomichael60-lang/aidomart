@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-7">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-header text-white py-3 px-4 d-flex justify-content-between align-items-center" style="background-color: #0B192C;">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-person-badge me-2" style="color: #FF6500;"></i> Store Profile & Essential Details</h5>
+                    <a href="{{ url_for('seller_dashboard') }}" class="btn btn-sm btn-outline-light">Back to Dashboard</a>
+                </div>
+                <div class="card-body p-4 p-md-5 bg-white">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} alert-dismissible fade show mb-4" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <form method="POST" action="{{ url_for('seller_profile_settings') }}" enctype="multipart/form-data">
+                        <div class="text-center mb-4">
+                            <img src="{{ url_for('static', filename=seller.profile_image) if seller.profile_image else url_for('static', filename='image/branding/favicon.png') }}" alt="Store Logo" class="rounded-circle border shadow-sm mb-3" style="width: 100px; height: 100px; object-fit: cover;">
+                            <div>
+                                <label for="profile_image" class="form-label fw-semibold text-dark">Update Store Profile Picture / Logo</label>
+                                <input type="file" class="form-control" id="profile_image" name="profile_image" accept="image/*">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-dark">Business / Store Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="business_name" value="{{ seller.business_name }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-dark">WhatsApp Number <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="whatsapp_number" value="{{ seller.whatsapp_number }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-dark">Shop Location / Address <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="shop_location" value="{{ seller.shop_location }}" placeholder="e.g. Tud new stc station" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-dark">What You Sell <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="what_they_sell" value="{{ seller.what_they_sell }}" placeholder="e.g. men's wear and Apple product" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-dark">Social Media Handles (Instagram / Snapchat)</label>
+                            <input type="text" class="form-control" name="social_handles" value="{{ seller.social_handles }}" placeholder="e.g. Snap: momandgod0">
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold text-dark">Detailed Business Description</label>
+                            <textarea class="form-control" name="business_description" rows="3" placeholder="Tell buyers more about your store policies...">{{ seller.business_description }}</textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-lg w-100 fw-bold text-white shadow-sm" style="background-color: #FF6500; border: none;">
+                            Save Profile Changes
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
