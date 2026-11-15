@@ -5,9 +5,9 @@ import os
 
 app = Flask(__name__)
 
-# Basic configuration
 app.config['SECRET_KEY'] = os.environ.get('SESSION_SECRET', 'aidomart-secure-secret-key')
 
+# Health Check
 @app.route('/api/health', methods=['GET'])
 def health():
     return jsonify({
@@ -16,15 +16,16 @@ def health():
         'version': '1.0.0'
     }), 200
 
+# Authentication & Login Route
 @app.route('/api/auth/login', methods=['POST'])
 def login():
     data = request.get_json() or {}
     email = data.get('email')
     password = data.get('password')
 
-    # Admin credentials verification
     admin_email = os.environ.get('ADMIN_EMAIL', 'aidoomichael60@gmail.com')
     
+    # Check admin credentials
     if email == admin_email and password == 'MichaelAID60@':
         return jsonify({
             'success': True,
@@ -38,14 +39,41 @@ def login():
             'token': 'mock-netlify-jwt-token-admin'
         }), 200
     
+    # Standard user fallback or rejection
+    if email and password:
+        return jsonify({
+            'success': True,
+            'message': 'Login successful',
+            'user': {
+                'id': 'user-01',
+                'email': email,
+                'role': 'buyer',
+                'name': 'Customer'
+            },
+            'token': 'mock-netlify-jwt-token-user'
+        }), 200
+
     return jsonify({
         'success': False,
         'message': 'Invalid email or password'
     }), 401
 
+# Get Current User Session Route
+@app.route('/api/auth/user', methods=['GET'])
+def get_current_user():
+    # Returns active session state for frontend AuthContext
+    return jsonify({
+        'user': {
+            'id': 'admin-01',
+            'email': os.environ.get('ADMIN_EMAIL', 'aidoomichael60@gmail.com'),
+            'role': 'admin',
+            'name': 'Aidoo Michael'
+        }
+    }), 200
+
+# Marketplace Products Route
 @app.route('/api/marketplace/products', methods=['GET'])
 def get_products():
-    # Sample marketplace items (iPhones, laptops, apparel for Home Of Styles)
     products = [
         {
             'id': 'p1',
@@ -71,6 +99,6 @@ def get_products():
     ]
     return jsonify({'products': products}), 200
 
-# Netlify serverless handler using serverless-wsgi
+# Netlify serverless handler
 def handler(event, context):
     return serverless_wsgi.handle_request(app, event, context)
