@@ -1,0 +1,105 @@
+import React, { useState } from 'react';
+import { Phone, Mail, MessageCircle } from 'lucide-react';
+import { AIDOMART_ASSETS, AIDOMART_CONTACT } from '../constants/assets';
+
+interface FooterProps {
+  onNavigate: (path: string) => void;
+}
+
+export function Footer({ onNavigate }: FooterProps) {
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  return (
+    <footer id="contact" className="bg-[#0B1F3A] text-slate-200 border-t border-white/10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 grid grid-cols-1 md:grid-cols-3 gap-10">
+        <div>
+          {!logoFailed ? (
+            <img
+              src={AIDOMART_ASSETS.branding.logo}
+              alt="AIDOMART Logo"
+              onError={() => setLogoFailed(true)}
+              className="h-9 w-auto object-contain"
+            />
+          ) : (
+            <span className="font-display text-xl font-extrabold tracking-tight text-white">
+              AIDO<span className="text-[#F97316]">MART</span>
+            </span>
+          )}
+          <p className="text-sm text-slate-300 mt-3 leading-relaxed max-w-sm">
+            A multi-vendor marketplace connecting buyers directly with verified independent sellers through transparent storefronts and manual payment verification.
+          </p>
+        </div>
+
+        <div>
+          <h3 className="font-display text-sm font-bold text-white mb-4">Marketplace</h3>
+          <ul className="space-y-2.5 text-sm text-slate-300">
+            <li>
+              <button type="button" onClick={() => onNavigate('/')} className="hover:text-white transition-colors">
+                Homepage
+              </button>
+            </li>
+            <li>
+              <button type="button" onClick={() => onNavigate('/shop')} className="hover:text-white transition-colors">
+                Shop Products
+              </button>
+            </li>
+            <li>
+              <button type="button" onClick={() => onNavigate('/categories')} className="hover:text-white transition-colors">
+                Browse Categories
+              </button>
+            </li>
+            <li>
+              <button type="button" onClick={() => onNavigate('/register?role=seller')} className="hover:text-white transition-colors">
+                Become a Verified Seller
+              </button>
+            </li>
+            <li>
+              <button type="button" onClick={() => onNavigate('/login')} className="hover:text-white transition-colors">
+                Account Sign In
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 className="font-display text-sm font-bold text-white mb-4">
+            {AIDOMART_CONTACT.adminTitle}
+          </h3>
+          <div className="space-y-2.5 text-sm text-slate-300">
+            <p className="font-medium text-white">{AIDOMART_CONTACT.contactName}</p>
+            <p className="flex items-center gap-2">
+              <Phone className="w-4 h-4 text-[#F97316] shrink-0" />
+              <a href={`tel:${AIDOMART_CONTACT.phone}`} className="hover:text-white tabular-nums">
+                {AIDOMART_CONTACT.phone}
+              </a>
+            </p>
+            <p className="flex items-center gap-2">
+              <Mail className="w-4 h-4 text-[#F97316] shrink-0" />
+              <a href={`mailto:${AIDOMART_CONTACT.email}`} className="hover:text-white break-all">
+                {AIDOMART_CONTACT.email}
+              </a>
+            </p>
+            <div className="pt-2">
+              <a
+                href={AIDOMART_CONTACT.whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold transition-colors"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>WhatsApp {AIDOMART_CONTACT.whatsappDisplay}</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-white/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400">
+          <p>© {new Date().getFullYear()} AIDOMART Marketplace. All rights reserved.</p>
+          <p>Independent sellers · Direct manual payment verification</p>
+        </div>
+      </div>
+    </footer>
+  );
+}

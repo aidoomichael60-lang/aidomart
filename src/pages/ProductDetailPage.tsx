@@ -1,0 +1,350 @@
+import React, { useEffect, useState } from 'react';
+import { ArrowLeft, MapPin, ShoppingCart, Star, Store } from 'lucide-react';
+import { apiRequest } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
+import type { Product, ProductReview } from '../types/marketplace';
+import { SafeAssetImage } from '../components/SafeAssetImage';
+import { VerifiedBadge } from '../components/VerifiedBadge';
+
+interface ProductDetailPageProps {
+  productId: number;
+  onNavigate: (path: string) => void;
+}
+
+export function ProductDetailPage({ productId, onNavigate }: ProductDetailPageProps) {
+  const { user } = useAuth();
+  const { addToCart } = useCart();
+
+  const [product, setProduct] = useState<Product | null>(null);
+  const [reviews, setReviews] = useState<ProductReview[]>([]);
+  const [eligibleOrderId, setEligibleOrderId] = useState<number | null>(null);
+  const [selectedImage, setSelectedImage] = useState(0);
+  const [selectedVariation, setSelectedVariation] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Review submission state (for eligible verified purchases)
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [reviewMsg, setReviewMsg] = useState('');
+  const [reviewErr, setReviewErr] = useState('');
+
+  const loadProduct = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await apiRequest<{
+        product: Product;
+        reviews: ProductReview[];
+        eligibleOrderId: number | null;
+      }>(`/api/marketplace/products/${productId}`);
+      setProduct(data.product);
+      setReviews(data.reviews || []);
+      setEligibleOrderId(data.eligibleOrderId);
+      setSelectedVariation(data.product.variations[0] || '');
+    } catch (err: any) {
+      setError(err.message || 'Product not found.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProduct();
+  }, [productId, user?.id]);
+
+  const submitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!eligibleOrderId || !product) return;
+    setReviewMsg('');
+    setReviewErr('');
+    try {
+      const res = await apiRequest<{ message: string }>('/api/buyer/reviews', {
+        method: 'POST',
+        body: { orderId: eligibleOrderId, productId: product.id, rating, comment },
+      });
+      setReviewMsg(res.message);
+      setComment('');
+      await loadProduct();
+    } catch (err: any) {
+      setReviewErr(err.message || 'Could not submit review.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+        <div className="h-96 bg-slate-200 rounded-xl animate-pulse" />
+      </div>
+    );
+  }
+
+  if (error || !product) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 text-center space-y-4">
+        <h1 className="font-display text-2xl font-bold text-[#0B1F3A]">Product Unavailable</h1>
+        <p className="text-sm text-slate-600">{error}</p>
+        <button
+          type="button"
+          onClick={() => onNavigate('/shop')}
+          className="px-4 py-2 rounded-lg bg-[#0B1F3A] text-white text-sm font-semibold"
+        >
+          Return to Shop
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-12">
+      <button
+        type="button"
+        onClick={() => onNavigate('/shop')}
+        className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-[#0B1F3A]"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        <span>Back to Shop</span>
+      </button>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+        {/* Product Gallery */}
+        <div className="lg:col-span-7 space-y-3">
+          <div className="aspect-[4/3] bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <SafeAssetImage
+              src={product.images[selectedImage] || ''}
+              alt={product.title}
+              fallbackTitle={product.title}
+              fallbackSubtitle={product.categoryName}
+              className="w-full h-full object-cover"
+            />
+          </div>
+          {product.images.length > 1 && (
+            <div className="grid grid-cols-5 gap-3">
+              {product.images.map((img, i) => (
+                <button
+                  key={img}
+                  type="button"
+                  onClick={() => setSelectedImage(i)}
+                  className={`aspect-[4/3] rounded-lg overflow-hidden border-2 ${
+                    i === selectedImage ? 'border-[#F97316]' : 'border-slate-200'
+                  }`}
+                >
+                  <SafeAssetImage src={img} alt={`${product.title} ${i + 1}`} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Purchase & Seller Module */}
+        <div className="lg:col-span-5 space-y-6 bg-white border border-slate-200 rounded-xl p-6">
+          <div>
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span>{product.categoryName}</span>
+              <span aria-hidden="true">·</span>
+              <span>{product.stock > 0 ? `${product.stock} available` : 'Out of stock'}</span>
+              {product.reviewCount ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    {product.ratingAvg} / 5 ({product.reviewCount} reviews)
+                  </span>
+                </>
+              ) : null}
+            </div>
+            <h1 className="font-display text-2xl font-bold text-[#0B1F3A] mt-2">
+              {product.title}
+            </h1>
+            <p className="text-2xl font-mono font-bold text-[#0B1F3A] tabular-nums mt-3">
+              GHS {product.price.toFixed(2)}
+            </p>
+          </div>
+
+          <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+            {product.description}
+          </p>
+
+          {product.variations.length > 0 && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-2">
+                Select Option / Variation
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {product.variations.map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setSelectedVariation(v)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                      selectedVariation === v
+                        ? 'bg-[#0B1F3A] text-white border-[#0B1F3A]'
+                        : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
+                    }`}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity</label>
+              <input
+                type="number"
+                min={1}
+                max={Math.max(1, product.stock)}
+                value={quantity}
+                onChange={(e) => setQuantity(Math.max(1, Math.min(product.stock || 1, Number(e.target.value) || 1)))}
+                className="w-20 px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono tabular-nums"
+              />
+            </div>
+
+            <button
+              type="button"
+              disabled={product.stock <= 0}
+              onClick={() => addToCart(product, quantity, selectedVariation)}
+              className="flex-1 mt-5 py-3 px-5 rounded-lg bg-[#F97316] hover:bg-[#EA580C] disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              <span>{product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}</span>
+            </button>
+          </div>
+
+          {/* Seller Profile Box */}
+          {product.seller && (
+            <div className="pt-5 border-t border-slate-200 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-500">Sold By</span>
+                {product.seller.verifiedBadge && <VerifiedBadge />}
+              </div>
+              <div className="flex items-center gap-3">
+                {product.seller.storefrontImage ? (
+                  <SafeAssetImage
+                    src={product.seller.storefrontImage}
+                    alt={product.seller.businessName}
+                    className="w-11 h-11 rounded-full object-cover border border-slate-200 shrink-0"
+                  />
+                ) : (
+                  <div className="w-11 h-11 rounded-full bg-[#0B1F3A] text-white flex items-center justify-center shrink-0">
+                    <Store className="w-5 h-5" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <h2 className="font-display text-sm font-bold text-[#0B1F3A]">
+                    {product.seller.businessName}
+                  </h2>
+                  {product.seller.locationCity && (
+                    <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                      <MapPin className="w-3 h-3" />
+                      <span>{product.seller.locationCity}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+              {product.seller.description && (
+                <p className="text-xs text-slate-600 line-clamp-2">{product.seller.description}</p>
+              )}
+              {product.seller.deliveryPickupNotes && (
+                <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                  <strong className="text-slate-800">Delivery & Pickup:</strong>{' '}
+                  {product.seller.deliveryPickupNotes}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => onNavigate(`/seller/${product.seller!.userId}`)}
+                className="w-full py-2.5 px-4 rounded-lg border border-[#0B1F3A] text-[#0B1F3A] hover:bg-[#0B1F3A] hover:text-white text-xs font-semibold transition-colors"
+              >
+                Visit Seller Storefront & View All Products
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Verified-Purchase Customer Reviews */}
+      <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
+        <div>
+          <h2 className="font-display text-xl font-bold text-[#0B1F3A]">
+            Verified Customer Reviews
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">
+            Only buyers with a completed order for this item can submit a review.
+          </p>
+        </div>
+
+        {eligibleOrderId && (
+          <form onSubmit={submitReview} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-[#0B1F3A]">
+              Leave a Verified Purchase Review
+            </h3>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-slate-700">Rating:</label>
+              <select
+                value={rating}
+                onChange={(e) => setRating(Number(e.target.value))}
+                className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
+              >
+                {[5, 4, 3, 2, 1].map((n) => (
+                  <option key={n} value={n}>
+                    {n} Star{n > 1 ? 's' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <textarea
+              required
+              rows={3}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Share your genuine experience with this product..."
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+            />
+            {reviewErr && <p className="text-xs text-red-600">{reviewErr}</p>}
+            {reviewMsg && <p className="text-xs text-emerald-700">{reviewMsg}</p>}
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-lg bg-[#0B1F3A] text-white text-xs font-semibold hover:bg-[#122E53]"
+            >
+              Submit Verified Review
+            </button>
+          </form>
+        )}
+
+        {reviews.length === 0 ? (
+          <p className="text-sm text-slate-500 py-4">
+            No verified customer reviews have been submitted for this product yet.
+          </p>
+        ) : (
+          <div className="divide-y divide-slate-200">
+            {reviews.map((rev) => (
+              <div key={rev.id} className="py-4 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-900">{rev.buyerName}</span>
+                    <span className="text-xs text-slate-500">· Verified Purchase</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[#F97316]">
+                    {Array.from({ length: rev.rating }).map((_, idx) => (
+                      <Star key={idx} className="w-3.5 h-3.5 fill-current" />
+                    ))}
+                  </div>
+                </div>
+                <p className="text-sm text-slate-700">{rev.comment}</p>
+                {rev.sellerResponse && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700">
+                    <strong className="text-[#0B1F3A]">Seller Reply:</strong> {rev.sellerResponse}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}

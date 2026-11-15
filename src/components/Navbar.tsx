@@ -1,0 +1,343 @@
+import React, { useState } from 'react';
+import { Bell, Menu, ShoppingBag, Volume2, VolumeX, X, LogOut, User } from 'lucide-react';
+import { AIDOMART_ASSETS } from '../constants/assets';
+import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
+import { useNotifications } from '../context/NotificationsContext';
+import { apiRequest } from '../lib/api';
+import { getAccountDisplayName } from '../utils/greeting';
+
+interface NavbarProps {
+  currentPath: string;
+  onNavigate: (path: string) => void;
+}
+
+export function Navbar({ currentPath, onNavigate }: NavbarProps) {
+  const { user, logout, refreshUser } = useAuth();
+  const { totalItems, setDrawerOpen } = useCart();
+  const {
+    notifications,
+    unreadCount,
+    readCount,
+    desktopPermission,
+    requestDesktopPermission,
+    markAsRead,
+    markAllAsRead,
+  } = useNotifications();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  const navLinks = [
+    { label: 'Home', path: '/' },
+    { label: 'Shop', path: '/shop' },
+    { label: 'Categories', path: '/categories' },
+    { label: 'Contact', path: '/#contact' },
+  ];
+
+  const handleLinkClick = (path: string) => {
+    setMobileMenuOpen(false);
+    setNotifOpen(false);
+    if (path === '/#contact') {
+      if (currentPath !== '/') {
+        onNavigate('/');
+        setTimeout(() => {
+          document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' });
+        }, 120);
+      } else {
+        document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' });
+      }
+      return;
+    }
+    onNavigate(path);
+  };
+
+  const dashboardPath =
+    user?.role === 'admin'
+      ? '/admin'
+      : user?.role === 'seller'
+        ? '/seller-dashboard'
+        : '/buyer-dashboard';
+
+  const toggleSound = async () => {
+    if (!user) return;
+    await apiRequest('/api/auth/preferences', {
+      method: 'PATCH',
+      body: { soundEnabled: !user.soundEnabled },
+    });
+    await refreshUser();
+  };
+
+  return (
+    <header className="sticky top-0 z-40 bg-[#0B1F3A] text-white border-b border-white/10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4 sm:gap-8">
+        {/* Zone 1: Brand Logo */}
+        <button
+          type="button"
+          onClick={() => handleLinkClick('/')}
+          className="flex items-center gap-2.5 text-left whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 rounded-md py-1"
+        >
+          {!logoFailed ? (
+            <img
+              src={AIDOMART_ASSETS.branding.logo}
+              alt="AIDOMART Logo"
+              onError={() => setLogoFailed(true)}
+              className="h-9 w-auto object-contain"
+            />
+          ) : (
+            <span className="font-display text-xl font-extrabold tracking-tight text-white">
+              AIDO<span className="text-[#F97316]">MART</span>
+            </span>
+          )}
+        </button>
+
+        {/* Zone 2: Public Navigation Links */}
+        <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-slate-200">
+          {navLinks.map((link) => {
+            const active = currentPath === link.path;
+            return (
+              <button
+                key={link.path}
+                type="button"
+                onClick={() => handleLinkClick(link.path)}
+                className={`whitespace-nowrap shrink-0 py-1 border-b-2 transition-colors ${
+                  active
+                    ? 'border-[#F97316] text-white'
+                    : 'border-transparent hover:text-white hover:border-white/30'
+                }`}
+              >
+                {link.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Zone 3: Functional Cart & Account Controls */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open shopping cart"
+            className="relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-100 hover:bg-white/10 transition-colors whitespace-nowrap shrink-0"
+          >
+            <ShoppingBag className="w-4 h-4 text-[#F97316]" />
+            <span className="hidden sm:inline">Cart</span>
+            <span className="tabular-nums text-xs font-mono font-semibold bg-[#F97316] text-white px-1.5 py-0.5 rounded">
+              {totalItems}
+            </span>
+          </button>
+
+          {user ? (
+            <div className="relative flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setNotifOpen((o) => !o)}
+                aria-label="Notifications"
+                className="relative p-2 rounded-lg text-slate-200 hover:bg-white/10 transition-colors"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F97316] text-white text-[10px] font-mono font-bold flex items-center justify-center tabular-nums">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white text-slate-900 rounded-xl shadow-xl border border-slate-200 overflow-hidden z-50">
+                  <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
+                    <div>
+                      <span className="text-sm font-semibold text-[#0B1F3A] block leading-tight">
+                        Notifications
+                      </span>
+                      <span className="text-[11px] font-mono text-slate-600 tabular-nums">
+                        {unreadCount} unread · {readCount} read
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={toggleSound}
+                        title={user.soundEnabled ? 'Mute notification sound' : 'Unmute notification sound'}
+                        className="p-1.5 rounded hover:bg-slate-200 text-slate-600"
+                      >
+                        {user.soundEnabled ? (
+                          <Volume2 className="w-4 h-4 text-[#F97316]" />
+                        ) : (
+                          <VolumeX className="w-4 h-4 text-slate-400" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={unreadCount === 0}
+                        onClick={markAllAsRead}
+                        className={`text-xs font-semibold px-2 py-1 rounded transition-colors ${
+                          unreadCount > 0
+                            ? 'text-[#0B1F3A] hover:bg-orange-100 hover:text-[#F97316]'
+                            : 'text-slate-400 cursor-default'
+                        }`}
+                      >
+                        Mark all as read
+                      </button>
+                    </div>
+                  </div>
+                  {desktopPermission === 'default' && (
+                    <div className="px-4 py-2 bg-orange-50 border-b border-orange-100 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-700">
+                        Get alert popups even on other tabs/browsers
+                      </span>
+                      <button
+                        type="button"
+                        onClick={requestDesktopPermission}
+                        className="text-[11px] font-semibold px-2.5 py-1 rounded bg-[#F97316] hover:bg-[#EA580C] text-white shrink-0"
+                      >
+                        Enable Popups
+                      </button>
+                    </div>
+                  )}
+                  <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                    {notifications.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-500">
+                        No notifications yet. Activity on your orders and account will appear here.
+                      </div>
+                    ) : (
+                      notifications.map((n) => (
+                        <button
+                          key={n.id}
+                          type="button"
+                          onClick={async () => {
+                            if (!n.isRead) await markAsRead(n.id);
+                            setNotifOpen(false);
+                            if (n.link) onNavigate(n.link);
+                          }}
+                          className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors ${
+                            !n.isRead ? 'bg-orange-50/60' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-[#0B1F3A]">{n.title}</span>
+                            {!n.isRead ? (
+                              <span className="text-[10px] font-semibold text-[#F97316]">Unread</span>
+                            ) : (
+                              <span className="text-[10px] font-medium text-slate-400">Read</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-600 mt-1 line-clamp-2">{n.message}</p>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => handleLinkClick(dashboardPath)}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Dashboard</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  await logout();
+                  onNavigate('/');
+                }}
+                aria-label="Sign out"
+                title="Sign out"
+                className="hidden sm:inline-flex p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="hidden sm:flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleLinkClick('/login')}
+                className="px-3 py-2 text-xs font-semibold text-slate-100 hover:text-white transition-colors whitespace-nowrap shrink-0"
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLinkClick('/register')}
+                className="px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0"
+              >
+                Register
+              </button>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((o) => !o)}
+            aria-label="Toggle mobile menu"
+            className="md:hidden p-2 rounded-lg text-slate-200 hover:bg-white/10"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Navigation Drawer */}
+      {mobileMenuOpen && (
+        <div className="md:hidden bg-[#122E53] border-t border-white/10 px-4 py-4 space-y-2">
+          {navLinks.map((link) => (
+            <button
+              key={link.path}
+              type="button"
+              onClick={() => handleLinkClick(link.path)}
+              className="block w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-slate-100 hover:bg-white/10"
+            >
+              {link.label}
+            </button>
+          ))}
+          <div className="pt-2 border-t border-white/10 flex flex-col gap-2">
+            {user ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleLinkClick(dashboardPath)}
+                  className="w-full py-2.5 px-4 rounded-lg bg-[#F97316] text-white text-sm font-semibold text-center"
+                >
+                  Open Dashboard ({getAccountDisplayName(user)})
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await logout();
+                    setMobileMenuOpen(false);
+                    onNavigate('/');
+                  }}
+                  className="w-full py-2.5 px-4 rounded-lg bg-white/10 text-slate-100 text-sm font-medium"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleLinkClick('/login')}
+                  className="py-2.5 px-4 rounded-lg bg-white/10 text-white text-sm font-semibold"
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLinkClick('/register')}
+                  className="py-2.5 px-4 rounded-lg bg-[#F97316] text-white text-sm font-semibold"
+                >
+                  Register
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </header>
+  );
+}
