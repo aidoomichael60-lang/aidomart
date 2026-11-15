@@ -34,14 +34,15 @@ def health():
         'version': '1.0.0'
     }), 200
 
-@app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
-@app.route('/auth/login', methods=['POST', 'OPTIONS'])
+@app.route('/api/auth/login', methods=['POST', 'GET', 'OPTIONS'])
+@app.route('/auth/login', methods=['POST', 'GET', 'OPTIONS'])
 @app.route('/login', methods=['POST', 'OPTIONS'])
 def login():
     if request.method == 'OPTIONS':
         return jsonify({'status': 'OK'}), 200
 
-    data = request.get_json() or {}
+    # Handle both JSON payloads and form data gracefully
+    data = request.get_json(silent=True) or request.form.to_dict() or {}
     email = data.get('email')
     password = data.get('password')
 
@@ -75,7 +76,8 @@ def login():
 
     return jsonify({
         'success': False,
-        'message': 'Invalid email or password'
+        'message': 'Invalid email or password',
+        'received': data
     }), 401
 
 @app.route('/api/auth/user', methods=['GET', 'OPTIONS'])
