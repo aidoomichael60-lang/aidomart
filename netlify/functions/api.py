@@ -11,25 +11,36 @@ app.config['SECRET_KEY'] = os.environ.get('SESSION_SECRET', 'aidomart-secure-sec
 def adjust_path():
     # Handle Netlify serverless function path prefix normalization
     if request.path.startswith('/.netlify/functions/api'):
-        # Strip the prefix so Flask routes match correctly
         path = request.path[len('/.netlify/functions/api'):]
         if not path.startswith('/'):
             path = '/' + path
         request.environ['PATH_INFO'] = path
 
-@app.route('/api/health', methods=['GET'])
-@app.route('/health', methods=['GET'])
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
+    return response
+
+@app.route('/api/health', methods=['GET', 'OPTIONS'])
+@app.route('/health', methods=['GET', 'OPTIONS'])
 def health():
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'OK'}), 200
     return jsonify({
         'status': 'running on Netlify serverless!',
         'marketplace': 'AIDOMART',
         'version': '1.0.0'
     }), 200
 
-@app.route('/api/auth/login', methods=['POST'])
-@app.route('/auth/login', methods=['POST'])
-@app.route('/login', methods=['POST'])
+@app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
+@app.route('/auth/login', methods=['POST', 'OPTIONS'])
+@app.route('/login', methods=['POST', 'OPTIONS'])
 def login():
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'OK'}), 200
+
     data = request.get_json() or {}
     email = data.get('email')
     password = data.get('password')
@@ -67,10 +78,15 @@ def login():
         'message': 'Invalid email or password'
     }), 401
 
-@app.route('/api/auth/user', methods=['GET'])
-@app.route('/auth/user', methods=['GET'])
-@app.route('/user', methods=['GET'])
+@app.route('/api/auth/user', methods=['GET', 'OPTIONS'])
+@app.route('/api/auth/me', methods=['GET', 'OPTIONS'])
+@app.route('/auth/user', methods=['GET', 'OPTIONS'])
+@app.route('/auth/me', methods=['GET', 'OPTIONS'])
+@app.route('/user', methods=['GET', 'OPTIONS'])
+@app.route('/me', methods=['GET', 'OPTIONS'])
 def get_current_user():
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'OK'}), 200
     return jsonify({
         'user': {
             'id': 'admin-01',
@@ -78,6 +94,17 @@ def get_current_user():
             'role': 'admin',
             'name': 'Aidoo Michael'
         }
+    }), 200
+
+@app.route('/api/marketplace/home', methods=['GET', 'OPTIONS'])
+@app.route('/marketplace/home', methods=['GET', 'OPTIONS'])
+def marketplace_home():
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'OK'}), 200
+    return jsonify({
+        'success': True,
+        'categories': ['clothing', 'electronics', 'shoes', 'sneakers', 'watches', 'Accessories'],
+        'featured': []
     }), 200
 
 def handler(event, context):
