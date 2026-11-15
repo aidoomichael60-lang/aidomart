@@ -2,32 +2,54 @@ import React, { useEffect, useState } from 'react';
 import {
   CheckCircle2,
   ClipboardCopy,
+  Clock,
   CreditCard,
+  MapPin,
+  MessageSquare,
   MessageSquareWarning,
   Package,
+  Phone,
+  Send,
   Settings,
   Star,
   Tag,
+  Truck,
   Volume2,
 } from 'lucide-react';
 import { apiRequest } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
-import type { Complaint, Order } from '../types/marketplace';
+import type { BuyerConversation, Complaint, Order } from '../types/marketplace';
 import { PromoManagerPanel } from '../components/PromoManagerPanel';
 import { VerifiedBadge } from '../components/VerifiedBadge';
+import { SafeAssetImage } from '../components/SafeAssetImage';
+import { WhatsAppIcon, buildWhatsAppUrl } from '../components/WhatsAppIcon';
+import { useLoginGreeting } from '../utils/greeting';
 
 interface BuyerDashboardProps {
   initialQuery?: URLSearchParams;
   onNavigate: (path: string) => void;
 }
 
-type BuyerTab = 'orders' | 'reviews' | 'promos' | 'complaints' | 'profile';
+type BuyerTab = 'orders' | 'messages' | 'reviews' | 'promos' | 'complaints' | 'profile';
 
 export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps) {
   const { user, refreshUser, settings } = useAuth();
+  const { greeting } = useLoginGreeting(user);
   const { testNotificationSound } = useNotifications();
-  const [tab, setTab] = useState<BuyerTab>('orders');
+  const [tab, setTab] = useState<BuyerTab>(() => {
+    const qTab = initialQuery?.get('tab');
+    if (
+      qTab === 'messages' ||
+      qTab === 'reviews' ||
+      qTab === 'promos' ||
+      qTab === 'complaints' ||
+      qTab === 'profile'
+    ) {
+      return qTab;
+    }
+    return 'orders';
+  });
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(() => {
@@ -35,6 +57,17 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
     return q ? Number(q) : null;
   });
   const [loadingOrders, setLoadingOrders] = useState(true);
+
+  // Buyer <-> Seller Messages
+  const [conversations, setConversations] = useState<BuyerConversation[]>([]);
+  const [selectedSellerId, setSelectedSellerId] = useState<number | null>(() => {
+    const q = initialQuery?.get('sellerId');
+    return q ? Number(q) : null;
+  });
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [chatDraft, setChatDraft] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const [chatErr, setChatErr] = useState('');
 
   // Payment report form
   const [showReportForm, setShowReportForm] = useState(false);
@@ -92,6 +125,52 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
     }
   };
 
+  const loadMessages = async (focusSellerId?: number | null) => {
+    setLoadingMessages(true);
+    try {
+      const qs = focusSellerId ? `?sellerId=${focusSellerId}` : '';
+      const res = await apiRequest<{ conversations: BuyerConversation[] }>(`/api/buyer/messages${qs}`);
+      const list = res.conversations || [];
+      setConversations(list);
+      const targetId = focusSellerId ?? selectedSellerId;
+      if (targetId && list.some((c) => c.sellerId === targetId)) {
+        setSelectedSellerId(targetId);
+      } else if (list.length > 0 && !targetId) {
+        setSelectedSellerId(list[0].sellerId);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  useEffect(() => {
+    const qTab = initialQuery?.get('tab');
+    const qOrder = initialQuery?.get('order');
+    const qSeller = initialQuery?.get('sellerId');
+    if (
+      qTab === 'orders' ||
+      qTab === 'messages' ||
+      qTab === 'reviews' ||
+      qTab === 'promos' ||
+      qTab === 'complaints' ||
+      qTab === 'profile'
+    ) {
+      setTab(qTab);
+    }
+    if (qOrder) {
+      setSelectedOrderId(Number(qOrder));
+    }
+    if (qSeller) {
+      const sid = Number(qSeller);
+      setSelectedSellerId(sid);
+      if (user?.role === 'buyer') {
+        loadMessages(sid);
+      }
+    }
+  }, [initialQuery?.toString()]);
+
   useEffect(() => {
     if (user?.role === 'buyer') {
       setFullName(user.fullName);
@@ -99,6 +178,8 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
       setSoundEnabled(user.soundEnabled);
       setLogin2faEnabled(user.login2faEnabled);
       loadBuyerData();
+      const qSeller = initialQuery?.get('sellerId');
+      loadMessages(qSeller ? Number(qSeller) : null);
     }
   }, [user?.id, user?.role]);
 
@@ -209,32 +290,88 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
     await refreshUser();
   };
 
+  const totalUnreadMessages = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
+  const activeConversation =
+    conversations.find((c) => c.sellerId === selectedSellerId) || conversations[0] || null;
+
+  const handleOpenChatWithSeller = async (sellerId: number) => {
+    setTab('messages');
+    setSelectedSellerId(sellerId);
+    await loadMessages(sellerId);
+    apiRequest(`/api/buyer/messages/${sellerId}/read`, { method: 'POST' }).catch(() => {});
+  };
+
+  const handleSelectConversation = async (sellerId: number) => {
+    setSelectedSellerId(sellerId);
+    setChatErr('');
+    const conv = conversations.find((c) => c.sellerId === sellerId);
+    if (conv && conv.unreadCount > 0) {
+      await apiRequest(`/api/buyer/messages/${sellerId}/read`, { method: 'POST' }).catch(() => {});
+      await loadMessages(sellerId);
+    }
+  };
+
+  const handleSendChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeConversation || !chatDraft.trim()) return;
+    setChatSending(true);
+    setChatErr('');
+    try {
+      await apiRequest('/api/buyer/messages', {
+        method: 'POST',
+        body: {
+          sellerId: activeConversation.sellerId,
+          message: chatDraft.trim(),
+        },
+      });
+      setChatDraft('');
+      await loadMessages(activeConversation.sellerId);
+    } catch (err: any) {
+      setChatErr(err.message || 'Could not send message.');
+    } finally {
+      setChatSending(false);
+    }
+  };
+
   const tabs: Array<{ id: BuyerTab; label: string; icon: React.ReactNode }> = [
-    { id: 'orders', label: 'Orders & Manual Payments', icon: <Package className="w-4 h-4" /> },
+    { id: 'orders', label: 'Orders & Payments', icon: <Package className="w-4 h-4" /> },
+    {
+      id: 'messages',
+      label: totalUnreadMessages > 0 ? `Messages (${totalUnreadMessages})` : 'Messages',
+      icon: <MessageSquare className="w-4 h-4" />,
+    },
     { id: 'reviews', label: 'Product Reviews', icon: <Star className="w-4 h-4" /> },
     ...(settings.promoCreatorPolicy === 'buyer' || settings.promoCreatorPolicy === 'both'
       ? [{ id: 'promos' as BuyerTab, label: 'Promotional Codes', icon: <Tag className="w-4 h-4" /> }]
       : []),
     { id: 'complaints', label: 'Complaints & Feedback', icon: <MessageSquareWarning className="w-4 h-4" /> },
-    { id: 'profile', label: 'Profile & Sound Settings', icon: <Settings className="w-4 h-4" /> },
+    { id: 'profile', label: 'Profile & Sound', icon: <Settings className="w-4 h-4" /> },
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-8 space-y-5 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h1 className="font-display text-2xl font-bold text-[#0B1F3A]">Buyer Dashboard</h1>
-          <p className="text-sm text-slate-600">
-            Welcome back, {user.fullName} · {user.email}
-          </p>
+          <h1 className="font-display text-xl sm:text-2xl font-bold text-[#0B1F3A]">Buyer Dashboard</h1>
+          <p className="text-sm font-semibold text-[#F97316] mt-0.5">{greeting}</p>
+          <p className="text-xs text-slate-600">{user.email}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => onNavigate('/shop')}
-          className="px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold whitespace-nowrap self-start sm:self-auto"
-        >
-          Continue Shopping
-        </button>
+        <div className="flex flex-wrap gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => onNavigate('/track-order')}
+            className="px-3.5 py-2 rounded-lg border border-[#0B1F3A] text-[#0B1F3A] hover:bg-[#0B1F3A] hover:text-white text-xs font-semibold whitespace-nowrap transition-colors"
+          >
+            Track Order by Code
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate('/shop')}
+            className="px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold whitespace-nowrap"
+          >
+            Continue Shopping
+          </button>
+        </div>
       </div>
 
       {/* Horizontal Tab Bar */}
@@ -244,7 +381,7 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
+            className={`inline-flex items-center gap-2 min-h-[40px] px-3.5 sm:px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
               tab === t.id
                 ? 'bg-[#0B1F3A] text-white'
                 : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -314,10 +451,10 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
 
           <div className="lg:col-span-7">
             {selectedOrder ? (
-              <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-5 sm:space-y-6">
                 <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-4">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h2 className="font-mono text-lg font-bold text-[#0B1F3A]">
                         {selectedOrder.orderReference}
                       </h2>
@@ -331,7 +468,17 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
                         className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50"
                       >
                         <ClipboardCopy className="w-3 h-3" />
-                        <span>{copiedRef === selectedOrder.orderReference ? 'Copied' : 'Copy Ref'}</span>
+                        <span>{copiedRef === selectedOrder.orderReference ? 'Copied' : 'Copy Code'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onNavigate(`/track-order?code=${encodeURIComponent(selectedOrder.orderReference)}`)
+                        }
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#F97316] hover:bg-[#EA580C] text-white text-[11px] font-semibold"
+                      >
+                        <Truck className="w-3 h-3" />
+                        <span>Track Order</span>
                       </button>
                     </div>
                     <p className="text-xs text-slate-500 mt-1">
@@ -341,36 +488,135 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
                     </p>
                   </div>
 
-                  <div className="text-right">
-                    <button
-                      type="button"
-                      onClick={() => onNavigate(`/seller/${selectedOrder.sellerId}`)}
-                      className="text-xs font-semibold text-[#0B1F3A] hover:text-[#F97316]"
-                    >
-                      {selectedOrder.sellerBusinessName}
-                    </button>
-                    {selectedOrder.sellerVerifiedBadge && (
-                      <div className="mt-1">
-                        <VerifiedBadge />
-                      </div>
-                    )}
+                  <div className="sm:text-right space-y-1.5">
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => onNavigate(`/seller/${selectedOrder.sellerId}`)}
+                        className="text-xs font-semibold text-[#0B1F3A] hover:text-[#F97316]"
+                      >
+                        {selectedOrder.sellerBusinessName}
+                      </button>
+                      {selectedOrder.sellerVerifiedBadge && (
+                        <div className="mt-1">
+                          <VerifiedBadge />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap sm:justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenChatWithSeller(selectedOrder.sellerId)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#0B1F3A] hover:bg-[#122E53] text-white text-[11px] font-semibold"
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        <span>Message Seller</span>
+                      </button>
+                      {buildWhatsAppUrl(
+                        selectedOrder.sellerPhone,
+                        `Hello ${selectedOrder.sellerBusinessName}, following up on AIDOMART order ${selectedOrder.orderReference}.`
+                      ) && (
+                        <a
+                          href={
+                            buildWhatsAppUrl(
+                              selectedOrder.sellerPhone,
+                              `Hello ${selectedOrder.sellerBusinessName}, following up on AIDOMART order ${selectedOrder.orderReference}.`
+                            )!
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-[11px] font-semibold"
+                        >
+                          <WhatsAppIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span>WhatsApp</span>
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Separate Order Status & Payment Status */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Separate Order Status, Tracking Stage & Payment Status */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200">
                     <p className="text-[11px] font-semibold text-slate-500">Order Status</p>
-                    <p className="text-sm font-bold text-[#0B1F3A] mt-0.5">
+                    <p className="text-xs sm:text-sm font-bold text-[#0B1F3A] mt-0.5">
                       {selectedOrder.orderStatus}
                     </p>
                   </div>
                   <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <p className="text-[11px] font-semibold text-slate-500">Manual Payment Status</p>
-                    <p className="text-sm font-bold text-[#F97316] mt-0.5">
+                    <p className="text-[11px] font-semibold text-slate-500">Delivery Tracking</p>
+                    <p className="text-xs sm:text-sm font-bold text-[#0B1F3A] mt-0.5">
+                      {selectedOrder.trackingStage || 'Order Placed'}
+                    </p>
+                  </div>
+                  <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <p className="text-[11px] font-semibold text-slate-500">Manual Payment</p>
+                    <p className="text-xs sm:text-sm font-bold text-[#F97316] mt-0.5">
                       {selectedOrder.payment?.status || 'Not Reported'}
                     </p>
                   </div>
+                </div>
+
+                {/* Live Seller Tracking Details & History */}
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-display text-sm font-bold text-[#0B1F3A] flex items-center gap-1.5">
+                      <Truck className="w-4 h-4 text-[#F97316]" />
+                      <span>Seller Tracking & Delivery Progress</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onNavigate(`/track-order?code=${encodeURIComponent(selectedOrder.orderReference)}`)
+                      }
+                      className="text-xs font-semibold text-[#F97316] hover:underline"
+                    >
+                      Open Full Tracker →
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
+                    {selectedOrder.trackingLocation && (
+                      <p className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-[#F97316] shrink-0" />
+                        <span>Location: {selectedOrder.trackingLocation}</span>
+                      </p>
+                    )}
+                    {selectedOrder.estimatedDelivery && (
+                      <p className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-[#F97316] shrink-0" />
+                        <span>ETA: {selectedOrder.estimatedDelivery}</span>
+                      </p>
+                    )}
+                    {selectedOrder.courierContact && (
+                      <p className="flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-[#F97316] shrink-0" />
+                        <span>Rider / Courier: {selectedOrder.courierContact}</span>
+                      </p>
+                    )}
+                    {selectedOrder.trackingNote && (
+                      <p className="sm:col-span-2 text-slate-600">{selectedOrder.trackingNote}</p>
+                    )}
+                  </div>
+
+                  {selectedOrder.trackingEvents && selectedOrder.trackingEvents.length > 0 && (
+                    <div className="bg-white border border-slate-200 rounded-lg divide-y divide-slate-100">
+                      {selectedOrder.trackingEvents.slice(0, 4).map((ev) => (
+                        <div key={ev.id} className="px-3 py-2 flex items-start justify-between gap-2">
+                          <div>
+                            <span className="font-semibold text-[#0B1F3A]">
+                              {ev.stage}
+                              {ev.location ? ` · ${ev.location}` : ''}
+                            </span>
+                            {ev.note && <p className="text-slate-600 mt-0.5">{ev.note}</p>}
+                          </div>
+                          <span className="text-[10px] text-slate-400 shrink-0 tabular-nums">
+                            {new Date(ev.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Order Items */}
@@ -600,6 +846,192 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
             ) : (
               <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-500">
                 Select an order on the left to view payment instructions and status details.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MESSAGES WITH SELLERS */}
+      {tab === 'messages' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-4 py-3.5 border-b border-slate-200 bg-slate-50">
+              <h2 className="font-display text-sm font-bold text-[#0B1F3A]">
+                Seller Conversations ({conversations.length})
+              </h2>
+            </div>
+            {loadingMessages ? (
+              <div className="p-6 text-xs text-slate-500">Loading messages...</div>
+            ) : conversations.length === 0 ? (
+              <div className="p-6 text-center space-y-3">
+                <p className="text-xs text-slate-600">
+                  No seller conversations yet. Open any product or seller storefront and click{' '}
+                  <strong>Message Seller</strong> to start chatting.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/shop')}
+                  className="px-4 py-2 rounded-lg bg-[#0B1F3A] text-white text-xs font-semibold"
+                >
+                  Browse Shop
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 max-h-[520px] overflow-y-auto">
+                {conversations.map((conv) => (
+                  <button
+                    key={conv.sellerId}
+                    type="button"
+                    onClick={() => handleSelectConversation(conv.sellerId)}
+                    className={`w-full text-left p-3.5 hover:bg-slate-50 transition-colors flex items-center gap-3 ${
+                      activeConversation?.sellerId === conv.sellerId ? 'bg-orange-50/70' : ''
+                    }`}
+                  >
+                    {conv.storefrontImage ? (
+                      <SafeAssetImage
+                        src={conv.storefrontImage}
+                        alt={conv.sellerBusinessName}
+                        className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-[#0B1F3A] text-white flex items-center justify-center text-xs font-bold shrink-0">
+                        {conv.sellerBusinessName.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-[#0B1F3A] truncate">
+                          {conv.sellerBusinessName}
+                        </span>
+                        {conv.unreadCount > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-[#F97316] text-white text-[10px] font-bold tabular-nums">
+                            {conv.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {conv.lastMessage || 'Start your conversation'}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="lg:col-span-8 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
+            {activeConversation ? (
+              <>
+                <div className="px-4 sm:px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onNavigate(`/seller/${activeConversation.sellerId}`)}
+                      className="font-display text-sm font-bold text-[#0B1F3A] hover:text-[#F97316]"
+                    >
+                      {activeConversation.sellerBusinessName}
+                    </button>
+                    {activeConversation.sellerVerifiedBadge && <VerifiedBadge />}
+                  </div>
+                  {buildWhatsAppUrl(
+                    activeConversation.sellerPhone,
+                    `Hello ${activeConversation.sellerBusinessName}, messaging from AIDOMART.`
+                  ) && (
+                    <a
+                      href={
+                        buildWhatsAppUrl(
+                          activeConversation.sellerPhone,
+                          `Hello ${activeConversation.sellerBusinessName}, messaging from AIDOMART.`
+                        )!
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800"
+                    >
+                      <WhatsAppIcon className="w-4 h-4 shrink-0" />
+                      <span>WhatsApp</span>
+                    </a>
+                  )}
+                </div>
+
+                <div className="p-4 space-y-3 max-h-[380px] overflow-y-auto bg-slate-50/50">
+                  {activeConversation.messages.length === 0 ? (
+                    <p className="text-xs text-slate-500 text-center py-8">
+                      Send a message below to start chatting with {activeConversation.sellerBusinessName}.
+                    </p>
+                  ) : (
+                    activeConversation.messages.map((m) => {
+                      const isMine = m.senderId === user.id;
+                      return (
+                        <div
+                          key={m.id}
+                          className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
+                        >
+                          <div
+                            className={`max-w-[85%] sm:max-w-[75%] rounded-xl px-3.5 py-2.5 text-xs space-y-1 ${
+                              isMine
+                                ? 'bg-[#0B1F3A] text-white'
+                                : 'bg-white border border-slate-200 text-slate-800'
+                            }`}
+                          >
+                            {m.productTitle && (
+                              <p
+                                className={`text-[10px] font-semibold ${
+                                  isMine ? 'text-orange-300' : 'text-[#F97316]'
+                                }`}
+                              >
+                                Product: {m.productTitle}
+                              </p>
+                            )}
+                            {m.orderReference && (
+                              <p
+                                className={`text-[10px] font-mono ${
+                                  isMine ? 'text-orange-300' : 'text-[#F97316]'
+                                }`}
+                              >
+                                Order: {m.orderReference}
+                              </p>
+                            )}
+                            <p className="whitespace-pre-wrap">{m.message}</p>
+                          </div>
+                          <span className="text-[10px] text-slate-400 mt-1 px-1 tabular-nums">
+                            {new Date(m.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <form
+                  onSubmit={handleSendChat}
+                  className="p-3 sm:p-4 border-t border-slate-200 bg-white space-y-2"
+                >
+                  {chatErr && <p className="text-xs text-red-600">{chatErr}</p>}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      value={chatDraft}
+                      onChange={(e) => setChatDraft(e.target.value)}
+                      placeholder={`Message ${activeConversation.sellerBusinessName}...`}
+                      className="flex-1 min-h-[42px] px-3.5 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm"
+                    />
+                    <button
+                      type="submit"
+                      disabled={chatSending}
+                      className="inline-flex items-center gap-1.5 min-h-[42px] px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold disabled:opacity-60"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Send</span>
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <div className="p-10 text-center text-xs text-slate-500">
+                Select a seller conversation to read and send messages.
               </div>
             )}
           </div>

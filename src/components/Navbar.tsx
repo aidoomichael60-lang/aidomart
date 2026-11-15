@@ -32,6 +32,7 @@ export function Navbar({ currentPath, onNavigate }: NavbarProps) {
     { label: 'Home', path: '/' },
     { label: 'Shop', path: '/shop' },
     { label: 'Categories', path: '/categories' },
+    { label: 'Track Order', path: '/track-order' },
     { label: 'Contact', path: '/#contact' },
   ];
 
@@ -144,7 +145,7 @@ export function Navbar({ currentPath, onNavigate }: NavbarProps) {
               </button>
 
               {notifOpen && (
-                <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white text-slate-900 rounded-xl shadow-xl border border-slate-200 overflow-hidden z-50">
+                <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-96 bg-white text-slate-900 rounded-xl shadow-xl border border-slate-200 overflow-hidden z-50">
                   <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
                     <div>
                       <span className="text-sm font-semibold text-[#0B1F3A] block leading-tight">

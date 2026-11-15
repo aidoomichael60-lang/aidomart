@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Phone, Mail, MessageCircle } from 'lucide-react';
+import { Phone, Mail } from 'lucide-react';
 import { AIDOMART_ASSETS, AIDOMART_CONTACT } from '../constants/assets';
+import { WhatsAppIcon } from './WhatsAppIcon';
 
 interface FooterProps {
   onNavigate: (path: string) => void;
@@ -49,6 +50,11 @@ export function Footer({ onNavigate }: FooterProps) {
               </button>
             </li>
             <li>
+              <button type="button" onClick={() => onNavigate('/track-order')} className="hover:text-white transition-colors">
+                Track Order
+              </button>
+            </li>
+            <li>
               <button type="button" onClick={() => onNavigate('/register?role=seller')} className="hover:text-white transition-colors">
                 Become a Verified Seller
               </button>
@@ -84,9 +90,9 @@ export function Footer({ onNavigate }: FooterProps) {
                 href={AIDOMART_CONTACT.whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0F2B4E] hover:bg-[#183C6B] border border-white/15 text-white text-xs font-semibold transition-colors"
               >
-                <MessageCircle className="w-4 h-4" />
+                <WhatsAppIcon className="w-4 h-4 shrink-0" />
                 <span>WhatsApp {AIDOMART_CONTACT.whatsappDisplay}</span>
               </a>
             </div>

@@ -4,14 +4,18 @@ import {
   CheckCircle2,
   CreditCard,
   FileCheck,
+  MapPin,
   Megaphone,
+  MessageCircle,
   MessageSquare,
   Package,
   Plus,
+  Send,
   ShoppingBag,
   Store,
   Tag,
   Trash2,
+  Truck,
   Upload,
 } from 'lucide-react';
 import { AIDOMART_ASSETS } from '../constants/assets';
@@ -21,6 +25,7 @@ import type {
   MarketplaceCategory,
   Order,
   Product,
+  SellerConversation,
   SellerProfile,
   SellerPromotion,
 } from '../types/marketplace';
@@ -28,8 +33,11 @@ import { VerifiedBadge } from '../components/VerifiedBadge';
 import { SafeAssetImage } from '../components/SafeAssetImage';
 import { PromoManagerPanel } from '../components/PromoManagerPanel';
 import { PhoneInput } from '../components/PhoneInput';
+import { WhatsAppIcon, buildWhatsAppUrl } from '../components/WhatsAppIcon';
+import { useLoginGreeting } from '../utils/greeting';
 
 interface SellerDashboardProps {
+  initialQuery?: URLSearchParams;
   onNavigate: (path: string) => void;
 }
 
@@ -39,17 +47,48 @@ type SellerTab =
   | 'profile'
   | 'products'
   | 'orders'
+  | 'messages'
   | 'payment-settings'
   | 'payments'
   | 'promotions'
   | 'feedback'
   | 'promocodes';
 
-export function SellerDashboard({ onNavigate }: SellerDashboardProps) {
+const TRACKING_STAGE_PRESETS = [
+  'Order Placed',
+  'Confirmed & Preparing',
+  'Packed & Ready',
+  'Dispatched / In Transit',
+  'Out for Delivery',
+  'Ready for Pickup',
+  'Delivered / Completed',
+];
+
+export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardProps) {
   const { user, settings, refreshUser } = useAuth();
-  const [tab, setTab] = useState<SellerTab>('overview');
+  const [tab, setTab] = useState<SellerTab>(() => {
+    const q = initialQuery?.get('tab');
+    if (
+      q === 'application' ||
+      q === 'profile' ||
+      q === 'products' ||
+      q === 'orders' ||
+      q === 'messages' ||
+      q === 'payment-settings' ||
+      q === 'payments' ||
+      q === 'promotions' ||
+      q === 'feedback' ||
+      q === 'promocodes'
+    ) {
+      return q;
+    }
+    return 'overview';
+  });
 
   const [profile, setProfile] = useState<SellerProfile | null>(null);
+  const { greeting } = useLoginGreeting(
+    user ? { ...user, sellerProfile: profile ?? user.sellerProfile } : null
+  );
   const [documents, setDocuments] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
@@ -114,9 +153,30 @@ export function SellerDashboard({ onNavigate }: SellerDashboardProps) {
   const [verifyNotes, setVerifyNotes] = useState<Record<number, string>>({});
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
 
+  // Order tracking editor state
+  const [trackingOrderId, setTrackingOrderId] = useState<number | null>(null);
+  const [trackingForm, setTrackingForm] = useState({
+    trackingStage: 'Confirmed & Preparing',
+    trackingLocation: '',
+    estimatedDelivery: '',
+    courierContact: '',
+    trackingNote: '',
+    orderStatus: '',
+  });
+  const [savingTracking, setSavingTracking] = useState(false);
+
+  // Seller <-> Buyer Messages state
+  const [conversations, setConversations] = useState<SellerConversation[]>([]);
+  const [selectedBuyerId, setSelectedBuyerId] = useState<number | null>(() => {
+    const q = initialQuery?.get('buyerId');
+    return q ? Number(q) : null;
+  });
+  const [buyerReplyDraft, setBuyerReplyDraft] = useState('');
+  const [sendingBuyerReply, setSendingBuyerReply] = useState(false);
+
   const loadAll = async () => {
     try {
-      const [dash, cats, prods, ords, promos, fb] = await Promise.all([
+      const [dash, cats, prods, ords, promos, fb, msgs] = await Promise.all([
         apiRequest<{ profile: SellerProfile; documents: any[]; auditLogs: any[]; analytics: any }>(
           '/api/seller/dashboard'
         ),
@@ -125,6 +185,7 @@ export function SellerDashboard({ onNavigate }: SellerDashboardProps) {
         apiRequest<{ orders: Order[] }>('/api/seller/orders'),
         apiRequest<{ promotions: SellerPromotion[] }>('/api/seller/promotions'),
         apiRequest<{ complaints: any[]; reviews: any[] }>('/api/seller/complaints'),
+        apiRequest<{ conversations: SellerConversation[] }>('/api/seller/messages'),
       ]);
 
       setProfile(dash.profile);
@@ -153,10 +214,38 @@ export function SellerDashboard({ onNavigate }: SellerDashboardProps) {
       setSellerPromos(promos.promotions || []);
       setComplaints(fb.complaints || []);
       setReviews(fb.reviews || []);
+      const convList = msgs.conversations || [];
+      setConversations(convList);
+      if (convList.length > 0 && !selectedBuyerId) {
+        setSelectedBuyerId(convList[0].buyerId);
+      }
     } catch {
       // ignore
     }
   };
+
+  useEffect(() => {
+    const qTab = initialQuery?.get('tab');
+    const qBuyerId = initialQuery?.get('buyerId');
+    if (
+      qTab === 'overview' ||
+      qTab === 'application' ||
+      qTab === 'profile' ||
+      qTab === 'products' ||
+      qTab === 'orders' ||
+      qTab === 'messages' ||
+      qTab === 'payment-settings' ||
+      qTab === 'payments' ||
+      qTab === 'promotions' ||
+      qTab === 'feedback' ||
+      qTab === 'promocodes'
+    ) {
+      setTab(qTab);
+    }
+    if (qBuyerId) {
+      setSelectedBuyerId(Number(qBuyerId));
+    }
+  }, [initialQuery?.toString()]);
 
   useEffect(() => {
     if (user?.role === 'seller') {
@@ -345,6 +434,58 @@ export function SellerDashboard({ onNavigate }: SellerDashboardProps) {
     }
   };
 
+  const openTrackingEditor = (ord: Order) => {
+    if (trackingOrderId === ord.id) {
+      setTrackingOrderId(null);
+      return;
+    }
+    setTrackingOrderId(ord.id);
+    setTrackingForm({
+      trackingStage: ord.trackingStage || 'Confirmed & Preparing',
+      trackingLocation: ord.trackingLocation || '',
+      estimatedDelivery: ord.estimatedDelivery || '',
+      courierContact: ord.courierContact || '',
+      trackingNote: ord.trackingNote || '',
+      orderStatus: ord.orderStatus,
+    });
+  };
+
+  const handleSaveOrderTracking = async (e: React.FormEvent, orderId: number) => {
+    e.preventDefault();
+    setSavingTracking(true);
+    try {
+      const res = await apiRequest<{ message: string }>(`/api/seller/orders/${orderId}/tracking`, {
+        method: 'POST',
+        body: trackingForm,
+      });
+      notifyResult(res.message);
+      setTrackingOrderId(null);
+      await loadAll();
+    } catch (err: any) {
+      notifyResult(err.message || 'Could not update tracking.', true);
+    } finally {
+      setSavingTracking(false);
+    }
+  };
+
+  const handleSendBuyerReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeBuyerConversation || !buyerReplyDraft.trim()) return;
+    setSendingBuyerReply(true);
+    try {
+      await apiRequest(`/api/seller/messages/${activeBuyerConversation.buyerId}`, {
+        method: 'POST',
+        body: { message: buyerReplyDraft.trim() },
+      });
+      setBuyerReplyDraft('');
+      await loadAll();
+    } catch (err: any) {
+      notifyResult(err.message || 'Could not send reply.', true);
+    } finally {
+      setSendingBuyerReply(false);
+    }
+  };
+
   const handleVerifyPayment = async (orderId: number, decision: string, amountDue: number) => {
     try {
       const res = await apiRequest<{ message: string }>(`/api/seller/payments/${orderId}/verify`, {
@@ -362,12 +503,21 @@ export function SellerDashboard({ onNavigate }: SellerDashboardProps) {
     }
   };
 
+  const totalUnreadMessages = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
+  const activeBuyerConversation =
+    conversations.find((c) => c.buyerId === selectedBuyerId) || conversations[0] || null;
+
   const tabs: Array<{ id: SellerTab; label: string; icon: React.ReactNode }> = [
     { id: 'overview', label: 'Overview & Analytics', icon: <BarChart3 className="w-4 h-4" /> },
     { id: 'application', label: 'Verification & Docs', icon: <FileCheck className="w-4 h-4" /> },
     { id: 'profile', label: 'Storefront Profile', icon: <Store className="w-4 h-4" /> },
     { id: 'products', label: 'Products', icon: <ShoppingBag className="w-4 h-4" /> },
-    { id: 'orders', label: 'Orders', icon: <Package className="w-4 h-4" /> },
+    { id: 'orders', label: 'Orders & Tracking', icon: <Package className="w-4 h-4" /> },
+    {
+      id: 'messages',
+      label: totalUnreadMessages > 0 ? `Buyer Messages (${totalUnreadMessages})` : 'Buyer Messages',
+      icon: <MessageCircle className="w-4 h-4" />,
+    },
     { id: 'payment-settings', label: 'Payment Settings', icon: <CreditCard className="w-4 h-4" /> },
     { id: 'payments', label: 'Payment Verification', icon: <CheckCircle2 className="w-4 h-4" /> },
     { id: 'promotions', label: 'Homepage Promotions', icon: <Megaphone className="w-4 h-4" /> },
@@ -378,7 +528,7 @@ export function SellerDashboard({ onNavigate }: SellerDashboardProps) {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-8 space-y-5 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
           <div className="flex flex-wrap items-center gap-3">
@@ -387,7 +537,8 @@ export function SellerDashboard({ onNavigate }: SellerDashboardProps) {
             </h1>
             {profile?.verifiedBadge && <VerifiedBadge size="md" />}
           </div>
-          <p className="text-xs text-slate-600 mt-1">
+          <p className="text-sm font-semibold text-[#F97316] mt-0.5">{greeting}</p>
+          <p className="text-xs text-slate-600 mt-0.5">
             Application Status:{' '}
             <strong className={isApproved ? 'text-emerald-700' : 'text-[#F97316]'}>
               {profile?.applicationStatus || 'Loading...'}
@@ -981,12 +1132,12 @@ export function SellerDashboard({ onNavigate }: SellerDashboardProps) {
             ) : (
               <div className="divide-y divide-slate-100">
                 {products.map((p) => (
-                  <div key={p.id} className="p-4 flex items-center justify-between gap-4">
+                  <div key={p.id} className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <SafeAssetImage
                         src={p.images[0] || ''}
                         alt={p.title}
-                        className="w-14 h-14 rounded-lg object-cover border border-slate-200 shrink-0"
+                        className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg object-cover border border-slate-200 shrink-0"
                       />
                       <div className="min-w-0">
                         <h3 className="text-sm font-semibold text-[#0B1F3A] truncate">{p.title}</h3>
@@ -1051,68 +1202,396 @@ export function SellerDashboard({ onNavigate }: SellerDashboardProps) {
         </div>
       )}
 
-      {/* ORDERS */}
+      {/* ORDERS & BUYER TRACKING */}
       {tab === 'orders' && (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200">
+          <div className="px-4 sm:px-6 py-4 border-b border-slate-200">
             <h2 className="font-display text-base font-bold text-[#0B1F3A]">
-              Seller Orders ({orders.length})
+              Seller Orders & Buyer Tracking ({orders.length})
             </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Update order workflow or post live tracking milestones so buyers know how far their order has reached.
+            </p>
           </div>
           {orders.length === 0 ? (
             <div className="p-8 text-center text-sm text-slate-500">No orders received yet.</div>
           ) : (
             <div className="divide-y divide-slate-200">
-              {orders.map((ord) => (
-                <div key={ord.id} className="p-5 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <span className="font-mono text-sm font-bold text-[#0B1F3A]">
-                        {ord.orderReference}
-                      </span>
-                      <span className="text-xs text-slate-500 ml-3">
-                        Buyer: {ord.buyerName} ({ord.buyerPhone}) · {ord.fulfillmentMethod}
-                        {ord.deliveryAddress ? ` — ${ord.deliveryAddress}` : ''}
-                      </span>
-                    </div>
-                    <span className="font-mono text-sm font-bold text-[#F97316] tabular-nums">
-                      GHS {ord.totalAmount.toFixed(2)}
-                    </span>
-                  </div>
-
-                  <div className="text-xs text-slate-700 space-y-1">
-                    {ord.items.map((it) => (
-                      <div key={it.id}>
-                        • {it.productTitle} {it.selectedVariation ? `(${it.selectedVariation})` : ''} ×{' '}
-                        {it.quantity}
+              {orders.map((ord) => {
+                const buyerWa = buildWhatsAppUrl(
+                  ord.buyerPhone,
+                  `Hello ${ord.buyerName}, update on your AIDOMART order ${ord.orderReference}.`
+                );
+                return (
+                  <div key={ord.id} className="p-4 sm:p-5 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <span className="font-mono text-sm font-bold text-[#0B1F3A]">
+                          {ord.orderReference}
+                        </span>
+                        <span className="text-xs text-slate-500 block sm:inline sm:ml-3">
+                          Buyer: {ord.buyerName} ({ord.buyerPhone}) · {ord.fulfillmentMethod}
+                          {ord.deliveryAddress ? ` — ${ord.deliveryAddress}` : ''}
+                        </span>
                       </div>
-                    ))}
-                  </div>
+                      <span className="font-mono text-sm font-bold text-[#F97316] tabular-nums">
+                        GHS {ord.totalAmount.toFixed(2)}
+                      </span>
+                    </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                    <span className="text-xs text-slate-600">
-                      Payment: <strong>{ord.payment?.status}</strong>
-                    </span>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <label className="text-xs text-slate-600">Order Workflow:</label>
-                      <select
-                        value={ord.orderStatus}
-                        onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value)}
-                        className="px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold"
+                    <div className="text-xs text-slate-700 space-y-1">
+                      {ord.items.map((it) => (
+                        <div key={it.id}>
+                          • {it.productTitle} {it.selectedVariation ? `(${it.selectedVariation})` : ''} ×{' '}
+                          {it.quantity}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs flex flex-wrap items-center justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <p className="font-semibold text-[#0B1F3A] flex items-center gap-1.5">
+                          <Truck className="w-3.5 h-3.5 text-[#F97316]" />
+                          <span>Tracking Stage: {ord.trackingStage || 'Order Placed'}</span>
+                        </p>
+                        {(ord.trackingLocation || ord.estimatedDelivery || ord.courierContact) && (
+                          <p className="text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5">
+                            {ord.trackingLocation && (
+                              <span className="inline-flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-[#F97316]" />
+                                {ord.trackingLocation}
+                              </span>
+                            )}
+                            {ord.estimatedDelivery && <span>ETA: {ord.estimatedDelivery}</span>}
+                            {ord.courierContact && <span>Courier: {ord.courierContact}</span>}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openTrackingEditor(ord)}
+                          className="px-3 py-1.5 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] text-white text-xs font-semibold"
+                        >
+                          {trackingOrderId === ord.id ? 'Close Tracking Form' : 'Update Tracking'}
+                        </button>
+                        {buyerWa && (
+                          <a
+                            href={buyerWa}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold"
+                          >
+                            <WhatsAppIcon className="w-3.5 h-3.5 shrink-0" />
+                            <span>WhatsApp</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    {trackingOrderId === ord.id && (
+                      <form
+                        onSubmit={(e) => handleSaveOrderTracking(e, ord.id)}
+                        className="p-4 rounded-xl bg-orange-50/50 border border-orange-200 space-y-3 text-xs"
                       >
-                        <option value="Pending Seller Confirmation">Pending Seller Confirmation</option>
-                        <option value="Confirmed">Confirmed</option>
-                        <option value="Processing">Processing</option>
-                        <option value="Ready for Pickup / Dispatch">Ready for Pickup / Dispatch</option>
-                        <option value="Completed">Completed</option>
-                        <option value="Cancelled">Cancelled</option>
-                      </select>
+                        <h3 className="font-display text-sm font-bold text-[#0B1F3A]">
+                          Post Tracking Update for {ord.orderReference}
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Tracking Milestone Stage *
+                            </label>
+                            <select
+                              value={trackingForm.trackingStage}
+                              onChange={(e) =>
+                                setTrackingForm({ ...trackingForm, trackingStage: e.target.value })
+                              }
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-xs font-semibold"
+                            >
+                              {TRACKING_STAGE_PRESETS.map((st) => (
+                                <option key={st} value={st}>
+                                  {st}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Update Order Status (Optional)
+                            </label>
+                            <select
+                              value={trackingForm.orderStatus}
+                              onChange={(e) =>
+                                setTrackingForm({ ...trackingForm, orderStatus: e.target.value })
+                              }
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-xs"
+                            >
+                              <option value="Pending Seller Confirmation">Pending Seller Confirmation</option>
+                              <option value="Confirmed">Confirmed</option>
+                              <option value="Processing">Processing</option>
+                              <option value="Ready for Pickup / Dispatch">Ready for Pickup / Dispatch</option>
+                              <option value="Completed">Completed</option>
+                              <option value="Cancelled">Cancelled</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Current Location / Checkpoint
+                            </label>
+                            <input
+                              type="text"
+                              value={trackingForm.trackingLocation}
+                              onChange={(e) =>
+                                setTrackingForm({ ...trackingForm, trackingLocation: e.target.value })
+                              }
+                              placeholder="e.g. Circle Dispatch Hub, Accra"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Estimated Delivery / Pickup Time
+                            </label>
+                            <input
+                              type="text"
+                              value={trackingForm.estimatedDelivery}
+                              onChange={(e) =>
+                                setTrackingForm({ ...trackingForm, estimatedDelivery: e.target.value })
+                              }
+                              placeholder="e.g. Today 4:00 PM"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Courier / Rider Contact
+                            </label>
+                            <input
+                              type="text"
+                              value={trackingForm.courierContact}
+                              onChange={(e) =>
+                                setTrackingForm({ ...trackingForm, courierContact: e.target.value })
+                              }
+                              placeholder="e.g. Kwame (0240000000)"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Progress Note for Buyer
+                            </label>
+                            <input
+                              type="text"
+                              value={trackingForm.trackingNote}
+                              onChange={(e) =>
+                                setTrackingForm({ ...trackingForm, trackingNote: e.target.value })
+                              }
+                              placeholder="Parcel handed over to dispatch rider..."
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-xs"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="submit"
+                            disabled={savingTracking}
+                            className="px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold disabled:opacity-60"
+                          >
+                            {savingTracking ? 'Saving...' : 'Save & Notify Buyer'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setTrackingOrderId(null)}
+                            className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-700"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                      <span className="text-xs text-slate-600">
+                        Payment: <strong>{ord.payment?.status}</strong>
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="text-xs text-slate-600">Order Workflow:</label>
+                        <select
+                          value={ord.orderStatus}
+                          onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value)}
+                          className="px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold"
+                        >
+                          <option value="Pending Seller Confirmation">Pending Seller Confirmation</option>
+                          <option value="Confirmed">Confirmed</option>
+                          <option value="Processing">Processing</option>
+                          <option value="Ready for Pickup / Dispatch">Ready for Pickup / Dispatch</option>
+                          <option value="Completed">Completed</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* BUYER MESSAGES */}
+      {tab === 'messages' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-4 py-3.5 border-b border-slate-200 bg-slate-50">
+              <h2 className="font-display text-sm font-bold text-[#0B1F3A]">
+                Buyer Inquiries ({conversations.length})
+              </h2>
+            </div>
+            {conversations.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-500">
+                No messages from buyers yet. When buyers message you from your storefront or product pages, conversations appear here.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 max-h-[520px] overflow-y-auto">
+                {conversations.map((conv) => (
+                  <button
+                    key={conv.buyerId}
+                    type="button"
+                    onClick={async () => {
+                      setSelectedBuyerId(conv.buyerId);
+                      if (conv.unreadCount > 0) {
+                        await apiRequest(`/api/seller/messages/${conv.buyerId}/read`, {
+                          method: 'POST',
+                        }).catch(() => {});
+                        await loadAll();
+                      }
+                    }}
+                    className={`w-full text-left p-3.5 hover:bg-slate-50 transition-colors space-y-1 ${
+                      activeBuyerConversation?.buyerId === conv.buyerId ? 'bg-orange-50/70' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-[#0B1F3A]">{conv.buyerName}</span>
+                      {conv.unreadCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-[#F97316] text-white text-[10px] font-bold tabular-nums">
+                          {conv.unreadCount}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 truncate">{conv.lastMessage}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="lg:col-span-8 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
+            {activeBuyerConversation ? (
+              <>
+                <div className="px-4 sm:px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="font-display text-sm font-bold text-[#0B1F3A]">
+                      Chat with {activeBuyerConversation.buyerName}
+                    </h3>
+                    {activeBuyerConversation.buyerPhone && (
+                      <p className="text-[11px] text-slate-500 tabular-nums">
+                        {activeBuyerConversation.buyerPhone}
+                      </p>
+                    )}
+                  </div>
+                  {buildWhatsAppUrl(
+                    activeBuyerConversation.buyerPhone,
+                    `Hello ${activeBuyerConversation.buyerName}, replying from ${profile?.businessName || 'AIDOMART'}.`
+                  ) && (
+                    <a
+                      href={
+                        buildWhatsAppUrl(
+                          activeBuyerConversation.buyerPhone,
+                          `Hello ${activeBuyerConversation.buyerName}, replying from ${profile?.businessName || 'AIDOMART'}.`
+                        )!
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800"
+                    >
+                      <WhatsAppIcon className="w-4 h-4 shrink-0" />
+                      <span>WhatsApp Buyer</span>
+                    </a>
+                  )}
+                </div>
+
+                <div className="p-4 space-y-3 max-h-[380px] overflow-y-auto bg-slate-50/50">
+                  {activeBuyerConversation.messages.map((m) => {
+                    const isMine = m.senderId === user.id;
+                    return (
+                      <div
+                        key={m.id}
+                        className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
+                      >
+                        <div
+                          className={`max-w-[85%] sm:max-w-[75%] rounded-xl px-3.5 py-2.5 text-xs space-y-1 ${
+                            isMine
+                              ? 'bg-[#0B1F3A] text-white'
+                              : 'bg-white border border-slate-200 text-slate-800'
+                          }`}
+                        >
+                          {m.productTitle && (
+                            <p
+                              className={`text-[10px] font-semibold ${
+                                isMine ? 'text-orange-300' : 'text-[#F97316]'
+                              }`}
+                            >
+                              Product: {m.productTitle}
+                            </p>
+                          )}
+                          {m.orderReference && (
+                            <p
+                              className={`text-[10px] font-mono ${
+                                isMine ? 'text-orange-300' : 'text-[#F97316]'
+                              }`}
+                            >
+                              Order: {m.orderReference}
+                            </p>
+                          )}
+                          <p className="whitespace-pre-wrap">{m.message}</p>
+                        </div>
+                        <span className="text-[10px] text-slate-400 mt-1 px-1 tabular-nums">
+                          {new Date(m.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <form
+                  onSubmit={handleSendBuyerReply}
+                  className="p-3 sm:p-4 border-t border-slate-200 bg-white flex gap-2"
+                >
+                  <input
+                    type="text"
+                    required
+                    value={buyerReplyDraft}
+                    onChange={(e) => setBuyerReplyDraft(e.target.value)}
+                    placeholder={`Reply to ${activeBuyerConversation.buyerName}...`}
+                    className="flex-1 min-h-[42px] px-3.5 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm"
+                  />
+                  <button
+                    type="submit"
+                    disabled={sendingBuyerReply}
+                    className="inline-flex items-center gap-1.5 min-h-[42px] px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold disabled:opacity-60"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Reply</span>
+                  </button>
+                </form>
+              </>
+            ) : (
+              <div className="p-10 text-center text-xs text-slate-500">
+                Select a buyer conversation on the left to read and reply.
+              </div>
+            )}
+          </div>
         </div>
       )}
 

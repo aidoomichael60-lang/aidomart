@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
 import crypto from 'node:crypto';
-import { db } from './db.ts';
+import { db, IS_SERVERLESS } from './db.ts';
 import { parseCookies, verifySessionCookie } from './security.ts';
 
 export interface AuthenticatedUser {
@@ -29,8 +29,12 @@ declare global {
   }
 }
 
-export const PUBLIC_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'public');
-export const PRIVATE_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'private');
+const UPLOAD_ROOT = IS_SERVERLESS
+  ? path.join('/tmp', 'uploads')
+  : path.join(process.cwd(), 'uploads');
+
+export const PUBLIC_UPLOAD_DIR = path.join(UPLOAD_ROOT, 'public');
+export const PRIVATE_UPLOAD_DIR = path.join(UPLOAD_ROOT, 'private');
 
 fs.mkdirSync(PUBLIC_UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(PRIVATE_UPLOAD_DIR, { recursive: true });
@@ -180,6 +184,7 @@ const CSRF_EXEMPT_AUTH_PATHS = new Set([
   '/auth/login',
   '/auth/verify-email',
   '/auth/resend-verification',
+  '/auth/resend-login-code',
   '/auth/verify-login-code',
   '/auth/forgot-password',
   '/auth/reset-password',
@@ -197,11 +202,21 @@ export function requireCsrf(req: Request, res: Response, next: NextFunction) {
 }
 
 export function getAppBaseUrl(req: Request): string {
-  if (process.env.APP_URL && process.env.APP_URL !== 'MY_APP_URL') {
-    return process.env.APP_URL.replace(/\/+$/, '');
+  const envAppUrl = (process.env.APP_URL || '').trim();
+  if (
+    envAppUrl &&
+    envAppUrl !== 'MY_APP_URL' &&
+    !(IS_SERVERLESS && /^https?:\/\/localhost(?::\d+)?/i.test(envAppUrl))
+  ) {
+    return envAppUrl.replace(/\/+$/, '');
   }
-  const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
-  const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:3000';
+  if (IS_SERVERLESS && process.env.URL) {
+    return process.env.URL.replace(/\/+$/, '');
+  }
+  const fwdProto = (req.headers['x-forwarded-proto'] as string) || '';
+  const proto = fwdProto.split(',')[0].trim() || req.protocol || 'http';
+  const fwdHost = (req.headers['x-forwarded-host'] as string) || '';
+  const host = fwdHost.split(',')[0].trim() || req.get('host') || 'localhost:3000';
   return `${proto}://${host}`;
 }
 

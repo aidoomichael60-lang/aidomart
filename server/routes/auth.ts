@@ -97,7 +97,9 @@ function isHttpsRequest(req: Request): boolean {
     req.secure ||
     fwdProto.split(',')[0].trim().toLowerCase() === 'https' ||
     process.env.NODE_ENV === 'production' ||
-    (process.env.APP_URL || '').startsWith('https://')
+    Boolean(process.env.NETLIFY) ||
+    (process.env.APP_URL || '').startsWith('https://') ||
+    (process.env.URL || '').startsWith('https://')
   );
 }
 
@@ -831,6 +833,73 @@ authRouter.post('/verify-login-code', verifyLimiter, async (req: Request, res: R
       sessionCreatedAt,
       sellerProfile,
     },
+  });
+});
+
+authRouter.post('/resend-login-code', authLimiter, async (req: Request, res: Response) => {
+  const email = sanitizeText(req.body?.email, 160).toLowerCase();
+  if (!email) {
+    return res.status(400).json({ error: 'Email address is required.' });
+  }
+
+  const user = db
+    .prepare(
+      `SELECT id, email, full_name, role, email_verified, account_status
+       FROM users WHERE email = ?`
+    )
+    .get(email) as
+    | {
+        id: number;
+        email: string;
+        full_name: string;
+        role: 'buyer' | 'seller' | 'admin';
+        email_verified: number;
+        account_status: string;
+      }
+    | undefined;
+
+  if (!user || user.account_status === 'Suspended' || !user.email_verified) {
+    return res.status(400).json({ error: 'Unable to resend login code for this account.' });
+  }
+
+  db.prepare(
+    `UPDATE verification_tokens SET used_at = datetime('now')
+     WHERE user_id = ? AND purpose = 'login_otp' AND used_at IS NULL`
+  ).run(user.id);
+
+  const otpCode = generateOtpCode();
+  const otpHash = hashToken(`${user.email}:${otpCode}`);
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+  db.prepare(
+    `INSERT INTO verification_tokens (user_id, purpose, token_hash, max_attempts, expires_at)
+     VALUES (?, 'login_otp', ?, 5, ?)`
+  ).run(user.id, otpHash, expiresAt);
+
+  const emailRes = await sendTransactionalEmail({
+    toEmail: user.email,
+    toName: user.full_name,
+    subject: 'Your new AIDOMART sign-in security code',
+    eventType: 'login_otp_resend',
+    headline: 'Fresh Sign-In Security Code',
+    bodyHtml: `
+      <p>Hello ${escapeHtml(user.full_name)},</p>
+      <p>Here is your new 6-digit security verification code to complete signing in to <strong>AIDOMART</strong>:</p>
+      ${buildOtpCardHtml(otpCode, 15)}
+      <p style="font-size:13px;color:#64748B;">For your protection, any previous login code has been cancelled. If you did not request this code, please reset your password immediately.</p>
+    `,
+  });
+
+  if (!emailRes.delivered) {
+    return res.status(503).json({
+      error: 'Unable to deliver a new login verification code right now. Please try again shortly.',
+      emailDelivered: false,
+    });
+  }
+
+  return res.json({
+    message: 'A new 6-digit login verification code has been sent to your email.',
+    emailDelivered: true,
   });
 });
 

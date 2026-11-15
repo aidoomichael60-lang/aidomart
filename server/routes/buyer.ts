@@ -40,6 +40,16 @@ function formatOrderDetail(orderRow: Record<string, any>) {
         .all(paymentRow.id)
     : [];
 
+  const trackingEvents = db
+    .prepare(
+      `SELECT ote.id, ote.stage, ote.location, ote.note, u.role AS actorRole, ote.created_at AS createdAt
+       FROM order_tracking_events ote
+       JOIN users u ON u.id = ote.actor_user_id
+       WHERE ote.order_id = ?
+       ORDER BY ote.created_at DESC, ote.id DESC`
+    )
+    .all(orderRow.id);
+
   return {
     id: orderRow.id,
     orderReference: orderRow.order_reference,
@@ -51,6 +61,7 @@ function formatOrderDetail(orderRow: Record<string, any>) {
     sellerId: orderRow.seller_id,
     sellerBusinessName: orderRow.seller_business_name,
     sellerVerifiedBadge: Boolean(orderRow.seller_verified_badge),
+    sellerPhone: orderRow.seller_phone || '',
     sellerPaymentSettings: {
       momoEnabled: Boolean(orderRow.momo_enabled),
       momoProvider: orderRow.momo_provider || '',
@@ -73,6 +84,12 @@ function formatOrderDetail(orderRow: Record<string, any>) {
     discountAmount: Number(orderRow.discount_amount),
     totalAmount: Number(orderRow.total_amount),
     orderStatus: orderRow.order_status,
+    trackingStage: orderRow.tracking_stage || 'Order Placed',
+    trackingLocation: orderRow.tracking_location || '',
+    trackingNote: orderRow.tracking_note || '',
+    estimatedDelivery: orderRow.estimated_delivery || '',
+    courierContact: orderRow.courier_contact || '',
+    trackingEvents,
     createdAt: orderRow.created_at,
     updatedAt: orderRow.updated_at,
     items,
@@ -303,6 +320,16 @@ buyerRouter.post('/orders/checkout', requireAuth, requireRole('buyer'), async (r
            VALUES (?, 'Order Created', 'Not Reported', ?, 'Awaiting direct manual payment from buyer.')`
         ).run(Number(paymentRes.lastInsertRowid), buyer.id);
 
+        db.prepare(
+          `INSERT INTO order_tracking_events (order_id, stage, location, note, actor_user_id)
+           VALUES (?, 'Order Placed', ?, ?, ?)`
+        ).run(
+          orderId,
+          fulfillmentMethod === 'Pickup' ? 'Seller Storefront' : 'Awaiting Seller Confirmation',
+          `Order ${orderReference} placed. Use code ${orderReference} as your Mobile Money payment reference and track progress anytime.`,
+          buyer.id
+        );
+
         createNotification({
           userId: sellerId,
           title: `New Order ${orderReference}`,
@@ -405,6 +432,7 @@ buyerRouter.get('/buyer/orders', requireAuth, requireRole('buyer'), (req: Reques
   const rows = db
     .prepare(
       `SELECT o.*, sp.business_name AS seller_business_name, sp.verified_badge AS seller_verified_badge,
+              sp.phone AS seller_phone,
               sp.momo_enabled, sp.momo_provider, sp.momo_account_name, sp.momo_number, sp.momo_instructions,
               sp.bank_enabled, sp.bank_name, sp.bank_account_name, sp.bank_account_number, sp.bank_branch, sp.bank_instructions
        FROM orders o
@@ -422,6 +450,7 @@ buyerRouter.get('/buyer/orders/:id', requireAuth, requireRole('buyer'), (req: Re
   const row = db
     .prepare(
       `SELECT o.*, sp.business_name AS seller_business_name, sp.verified_badge AS seller_verified_badge,
+              sp.phone AS seller_phone,
               sp.momo_enabled, sp.momo_provider, sp.momo_account_name, sp.momo_number, sp.momo_instructions,
               sp.bank_enabled, sp.bank_name, sp.bank_account_name, sp.bank_account_number, sp.bank_branch, sp.bank_instructions
        FROM orders o
@@ -672,4 +701,147 @@ buyerRouter.post('/buyer/complaints', requireAuth, requireRole('buyer'), (req: R
   }
 
   return res.status(201).json({ message: 'Your complaint / feedback has been submitted.' });
+});
+
+buyerRouter.get('/buyer/messages', requireAuth, requireRole('buyer'), (req: Request, res: Response) => {
+  const buyerId = req.authUser!.id;
+  const focusSellerId = req.query.sellerId ? Number(req.query.sellerId) : null;
+
+  const sellersRows = db
+    .prepare(
+      `SELECT DISTINCT sp.user_id AS sellerId, sp.business_name AS businessName,
+              sp.verified_badge AS verifiedBadge, sp.phone AS phone, sp.storefront_image AS storefrontImage
+       FROM seller_messages sm
+       JOIN seller_profiles sp ON sp.user_id = sm.seller_id
+       WHERE sm.buyer_id = ?`
+    )
+    .all(buyerId) as Array<Record<string, any>>;
+
+  const sellerMap = new Map<number, Record<string, any>>();
+  for (const s of sellersRows) {
+    sellerMap.set(s.sellerId, s);
+  }
+
+  if (focusSellerId && Number.isFinite(focusSellerId) && !sellerMap.has(focusSellerId)) {
+    const focus = db
+      .prepare(
+        `SELECT sp.user_id AS sellerId, sp.business_name AS businessName,
+                sp.verified_badge AS verifiedBadge, sp.phone AS phone, sp.storefront_image AS storefrontImage
+         FROM seller_profiles sp
+         JOIN users u ON u.id = sp.user_id
+         WHERE sp.user_id = ? AND sp.application_status = 'Approved' AND u.account_status = 'Active'`
+      )
+      .get(focusSellerId) as Record<string, any> | undefined;
+    if (focus) {
+      sellerMap.set(focus.sellerId, focus);
+    }
+  }
+
+  const msgStmt = db.prepare(
+    `SELECT sm.id, sm.buyer_id AS buyerId, sm.seller_id AS sellerId, sm.sender_id AS senderId,
+            sm.product_id AS productId, p.title AS productTitle,
+            sm.order_id AS orderId, o.order_reference AS orderReference,
+            sm.message, sm.is_read AS isRead, sm.created_at AS createdAt
+     FROM seller_messages sm
+     LEFT JOIN products p ON p.id = sm.product_id
+     LEFT JOIN orders o ON o.id = sm.order_id
+     WHERE sm.buyer_id = ? AND sm.seller_id = ?
+     ORDER BY sm.created_at ASC, sm.id ASC`
+  );
+
+  const conversations = Array.from(sellerMap.values()).map((s) => {
+    const messages = msgStmt.all(buyerId, s.sellerId) as Array<Record<string, any>>;
+    const unreadCount = messages.filter((m) => m.senderId !== buyerId && !m.isRead).length;
+    const last = messages[messages.length - 1];
+    return {
+      sellerId: s.sellerId,
+      sellerBusinessName: s.businessName,
+      sellerVerifiedBadge: Boolean(s.verifiedBadge),
+      sellerPhone: s.phone || '',
+      storefrontImage: s.storefrontImage || null,
+      unreadCount,
+      lastMessage: last ? last.message : '',
+      lastAt: last ? last.createdAt : null,
+      messages: messages.map((m) => ({
+        ...m,
+        isRead: Boolean(m.isRead),
+      })),
+    };
+  });
+
+  conversations.sort((a, b) => {
+    if (!a.lastAt && !b.lastAt) return 0;
+    if (!a.lastAt) return -1;
+    if (!b.lastAt) return 1;
+    return String(b.lastAt).localeCompare(String(a.lastAt));
+  });
+
+  return res.json({ conversations });
+});
+
+buyerRouter.post('/buyer/messages', requireAuth, requireRole('buyer'), (req: Request, res: Response) => {
+  const buyer = req.authUser!;
+  const sellerId = Number(req.body?.sellerId);
+  const productId = req.body?.productId ? Number(req.body.productId) : null;
+  const orderId = req.body?.orderId ? Number(req.body.orderId) : null;
+  const message = sanitizeText(req.body?.message, 1200);
+
+  if (!Number.isFinite(sellerId)) {
+    return res.status(400).json({ error: 'Valid seller is required.' });
+  }
+  if (!message) {
+    return res.status(400).json({ error: 'Please write a message before sending.' });
+  }
+
+  const seller = db
+    .prepare(
+      `SELECT sp.user_id, sp.business_name
+       FROM seller_profiles sp
+       JOIN users u ON u.id = sp.user_id
+       WHERE sp.user_id = ? AND sp.application_status = 'Approved' AND u.account_status = 'Active'`
+    )
+    .get(sellerId) as { user_id: number; business_name: string } | undefined;
+
+  if (!seller) {
+    return res.status(404).json({ error: 'Seller storefront is not available for messaging.' });
+  }
+
+  const info = db
+    .prepare(
+      `INSERT INTO seller_messages (buyer_id, seller_id, sender_id, product_id, order_id, message)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .run(buyer.id, sellerId, buyer.id, productId, orderId, message);
+
+  db.prepare(
+    `UPDATE seller_messages SET is_read = 1
+     WHERE buyer_id = ? AND seller_id = ? AND sender_id != ? AND is_read = 0`
+  ).run(buyer.id, sellerId, buyer.id);
+
+  const buyerFirstName = buyer.fullName.trim().split(/\s+/)[0] || buyer.fullName;
+  createNotification({
+    userId: sellerId,
+    title: `New Message from ${buyerFirstName}`,
+    message: message.slice(0, 140),
+    link: `/seller-dashboard?tab=messages&buyerId=${buyer.id}`,
+    type: 'buyer_message',
+  });
+
+  return res.status(201).json({
+    message: 'Message sent to seller.',
+    id: Number(info.lastInsertRowid),
+  });
+});
+
+buyerRouter.post('/buyer/messages/:sellerId/read', requireAuth, requireRole('buyer'), (req: Request, res: Response) => {
+  const buyerId = req.authUser!.id;
+  const sellerId = Number(req.params.sellerId);
+  if (!Number.isFinite(sellerId)) {
+    return res.status(400).json({ error: 'Invalid seller.' });
+  }
+  db.prepare(
+    `UPDATE seller_messages SET is_read = 1
+     WHERE buyer_id = ? AND seller_id = ? AND sender_id != ? AND is_read = 0`
+  ).run(buyerId, sellerId, buyerId);
+  return res.json({ ok: true });
 });

@@ -60,12 +60,16 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<'google' | null>(null);
+  const [googleConfigured, setGoogleConfigured] = useState(false);
 
   // Login OTP state
   const [otpRequired, setOtpRequired] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpTargetEmail, setOtpTargetEmail] = useState('');
   const [unverifiedEmailPrompt, setUnverifiedEmailPrompt] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendingCode, setResendingCode] = useState(false);
 
   // Verify email state
   const [verifyCode, setVerifyCode] = useState(initialQuery?.get('code') || '');
@@ -101,6 +105,12 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
   }, []);
 
   useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = window.setTimeout(() => setResendCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => window.clearTimeout(t);
+  }, [resendCooldown]);
+
+  useEffect(() => {
     const qEmail = initialQuery?.get('email');
     const qCode = initialQuery?.get('code');
     const qToken = initialQuery?.get('token');
@@ -120,6 +130,79 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
     if (u.role === 'admin') onNavigate('/admin');
     else if (u.role === 'seller') onNavigate('/seller-dashboard');
     else onNavigate('/buyer-dashboard');
+  };
+
+  useEffect(() => {
+    apiRequest<{ google: boolean }>('/api/auth/oauth/providers')
+      .then((res) => setGoogleConfigured(Boolean(res.google)))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const handleOAuthMessage = async (event: MessageEvent) => {
+      const origin = event.origin || '';
+      if (
+        origin !== window.location.origin &&
+        !origin.endsWith('.run.app') &&
+        !origin.includes('localhost')
+      ) {
+        return;
+      }
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+        try {
+          const me = await apiRequest<{ user: AuthUser | null; csrfToken: string | null }>(
+            '/api/auth/me'
+          );
+          if (me.user) {
+            setAuthenticatedUser(me.user, me.csrfToken);
+            redirectAfterLogin(me.user);
+          } else {
+            await refreshUser();
+          }
+        } catch {
+          await refreshUser();
+        } finally {
+          setOauthLoading(null);
+        }
+      } else if (event.data?.type === 'OAUTH_AUTH_ERROR') {
+        setOauthLoading(null);
+        setError(event.data?.error || 'Social sign-in could not be completed.');
+      }
+    };
+
+    window.addEventListener('message', handleOAuthMessage);
+    return () => window.removeEventListener('message', handleOAuthMessage);
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setInfo('');
+    setOauthLoading('google');
+    try {
+      const roleParam = mode === 'register' ? `?role=${regRole}` : '';
+      const data = await apiRequest<{ url: string }>(
+        `/api/auth/oauth/google/url${roleParam}`
+      );
+      const popup = window.open(
+        data.url,
+        'aidomart_oauth_popup',
+        'width=560,height=680,scrollbars=yes,resizable=yes'
+      );
+      if (!popup) {
+        setOauthLoading(null);
+        setError('Popup was blocked by your browser. Please allow popups for this site and try again.');
+        return;
+      }
+      const closeWatcher = window.setInterval(() => {
+        if (popup.closed) {
+          window.clearInterval(closeWatcher);
+          setOauthLoading(null);
+        }
+      }, 500);
+    } catch (err: any) {
+      setOauthLoading(null);
+      setError(err.message || 'Unable to start Google Sign-In.');
+    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -187,6 +270,33 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
     }
   };
 
+  const handleResendLoginOtp = async () => {
+    const targetEmail = (otpTargetEmail || email).trim();
+    if (!targetEmail || resendCooldown > 0) return;
+    setError('');
+    setInfo('');
+    setResendingCode(true);
+    try {
+      const data = await apiRequest<{ message: string; emailDelivered: boolean }>(
+        '/api/auth/resend-login-code',
+        {
+          method: 'POST',
+          body: { email: targetEmail },
+        }
+      );
+      setResendCooldown(30);
+      if (data.emailDelivered) {
+        setInfo(data.message);
+      } else {
+        setError(data.message);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Could not resend login verification code.');
+    } finally {
+      setResendingCode(false);
+    }
+  };
+
   const handleRegister = async (saveAsDraft: boolean) => {
     setError('');
     setInfo('');
@@ -218,9 +328,7 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
       if (data.emailDelivered) {
         setInfo(data.message);
       } else {
-        setError(
-          `${data.message} (${data.emailError || 'Check Brevo sender/API key in .env.'})`
-        );
+        setError(data.message);
       }
       onNavigate(`/verify-email?email=${encodeURIComponent(data.email)}`);
     } catch (err: any) {
@@ -251,24 +359,26 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
   };
 
   const handleResendVerification = async () => {
+    if (resendCooldown > 0) return;
     setError('');
     setInfo('');
     setEmailVerifiedDone(false);
-    setSubmitting(true);
+    setResendingCode(true);
     try {
       const data = await apiRequest<{ message: string; emailDelivered: boolean; emailError?: string }>(
         '/api/auth/resend-verification',
         { method: 'POST', body: { email: unverifiedEmailPrompt || email } }
       );
+      setResendCooldown(30);
       if (data.emailDelivered) {
         setInfo(data.message);
       } else {
-        setError(`${data.message} ${data.emailError ? `(${data.emailError})` : ''}`);
+        setError(data.message);
       }
     } catch (err: any) {
       setError(err.message || 'Could not resend verification email.');
     } finally {
-      setSubmitting(false);
+      setResendingCode(false);
     }
   };
 
@@ -309,8 +419,8 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
-      <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 shadow-sm space-y-6">
+    <div className="max-w-2xl mx-auto px-3 sm:px-6 py-6 sm:py-12">
+      <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-8 shadow-sm space-y-6">
         {mode === 'login' && (
           <>
             <div>
@@ -415,10 +525,15 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
                       <div className="flex flex-wrap gap-2 pt-1">
                         <button
                           type="button"
+                          disabled={resendingCode || resendCooldown > 0}
                           onClick={handleResendVerification}
-                          className="font-semibold underline text-[#0B1F3A]"
+                          className="font-semibold underline text-[#0B1F3A] disabled:opacity-50"
                         >
-                          Resend Verification Email
+                          {resendingCode
+                            ? 'Sending...'
+                            : resendCooldown > 0
+                              ? `Resend in ${resendCooldown}s`
+                              : 'Resend Verification Code'}
                         </button>
                         <button
                           type="button"
@@ -447,6 +562,52 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
                 >
                   {submitting ? 'Signing in...' : 'Sign In'}
                 </button>
+
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-3 text-slate-400 font-semibold">
+                      Or continue with
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={oauthLoading !== null}
+                  onClick={handleGoogleSignIn}
+                  className="w-full flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 transition-colors disabled:opacity-60"
+                >
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      fill="#4285F4"
+                      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 24c3.3 0 6.08-1.09 8.1-2.96l-3.88-3.05c-1.1.74-2.51 1.18-4.22 1.18-3.25 0-6-2.19-6.98-5.14H1.01v3.14C3.05 21.2 7.23 24 12 24z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.02 14.03c-.25-.74-.39-1.54-.39-2.36s.14-1.62.39-2.36V6.17H1.01A11.98 11.98 0 0 0 0 11.67c0 1.93.46 3.76 1.01 5.5l4.01-3.14z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 4.75c1.8 0 3.41.62 4.68 1.84l3.51-3.51C18.07 1.19 15.3 0 12 0 7.23 0 3.05 2.8 1.01 6.83l4.01 3.14C6 6.94 8.75 4.75 12 4.75z"
+                    />
+                  </svg>
+                  <span>
+                    {oauthLoading === 'google' ? 'Connecting to Google...' : 'Continue with Google (Gmail)'}
+                  </span>
+                </button>
+
+                {!googleConfigured && (
+                  <p className="text-[11px] text-slate-400 text-center">
+                    Google Sign-In connects once Google OAuth keys are added to server environment settings.
+                  </p>
+                )}
 
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-xs text-slate-600">
                   <button
@@ -491,21 +652,40 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
                     {error}
                   </p>
                 )}
-                <div className="flex items-center gap-3">
+                {info && (
+                  <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 p-3 rounded-lg">
+                    {info}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-2.5">
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 py-2.5 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-semibold"
+                    className="flex-1 min-h-[42px] py-2.5 px-4 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-semibold"
                   >
                     {submitting ? 'Verifying...' : 'Verify & Sign In'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={resendingCode || resendCooldown > 0}
+                    onClick={handleResendLoginOtp}
+                    className="min-h-[42px] px-4 py-2.5 rounded-lg border border-slate-300 text-xs font-semibold text-[#0B1F3A] hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {resendingCode
+                      ? 'Sending...'
+                      : resendCooldown > 0
+                        ? `Resend (${resendCooldown}s)`
+                        : 'Resend Code'}
                   </button>
                   <button
                     type="button"
                     onClick={() => {
                       setOtpRequired(false);
                       setOtpCode('');
+                      setError('');
+                      setInfo('');
                     }}
-                    className="px-4 py-2.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700"
+                    className="min-h-[42px] px-4 py-2.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700"
                   >
                     Back
                   </button>
@@ -823,6 +1003,46 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
                 )}
               </div>
 
+              <div className="relative py-1">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-200" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-3 text-slate-400 font-semibold">
+                    Or register as {regRole === 'seller' ? 'Seller' : 'Buyer'} with
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={oauthLoading !== null}
+                onClick={handleGoogleSignIn}
+                className="w-full flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 transition-colors disabled:opacity-60"
+              >
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    fill="#4285F4"
+                    d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 24c3.3 0 6.08-1.09 8.1-2.96l-3.88-3.05c-1.1.74-2.51 1.18-4.22 1.18-3.25 0-6-2.19-6.98-5.14H1.01v3.14C3.05 21.2 7.23 24 12 24z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.02 14.03c-.25-.74-.39-1.54-.39-2.36s.14-1.62.39-2.36V6.17H1.01A11.98 11.98 0 0 0 0 11.67c0 1.93.46 3.76 1.01 5.5l4.01-3.14z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 4.75c1.8 0 3.41.62 4.68 1.84l3.51-3.51C18.07 1.19 15.3 0 12 0 7.23 0 3.05 2.8 1.01 6.83l4.01 3.14C6 6.94 8.75 4.75 12 4.75z"
+                  />
+                </svg>
+                <span>
+                  {oauthLoading === 'google' ? 'Connecting to Google...' : 'Continue with Google (Gmail)'}
+                </span>
+              </button>
+
               <p className="text-xs text-center text-slate-600 pt-2">
                 Already have an account?{' '}
                 <button
@@ -901,11 +1121,15 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
                 </button>
                 <button
                   type="button"
-                  disabled={submitting || !email}
+                  disabled={submitting || resendingCode || !email || resendCooldown > 0}
                   onClick={handleResendVerification}
-                  className="py-2.5 px-4 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="min-h-[42px] py-2.5 px-4 rounded-lg border border-slate-300 text-xs font-semibold text-[#0B1F3A] hover:bg-slate-50 disabled:opacity-50"
                 >
-                  Resend Code
+                  {resendingCode
+                    ? 'Sending...'
+                    : resendCooldown > 0
+                      ? `Resend (${resendCooldown}s)`
+                      : 'Resend Code'}
                 </button>
               </div>
             </form>

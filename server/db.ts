@@ -1,11 +1,20 @@
 import Database from 'better-sqlite3';
+import fs from 'node:fs';
 import path from 'node:path';
 import { hashPassword } from './security.ts';
 
-const DB_PATH = path.join(process.cwd(), 'aidomart.db');
+export const IS_SERVERLESS = Boolean(
+  process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME
+);
+
+export const DB_PATH = IS_SERVERLESS
+  ? path.join('/tmp', 'aidomart.db')
+  : path.join(process.cwd(), 'aidomart.db');
+
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
 export const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
+db.pragma(IS_SERVERLESS ? 'journal_mode = DELETE' : 'journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 export function initDatabase() {
@@ -42,6 +51,16 @@ export function initDatabase() {
       first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
       last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(user_id, device_hash)
+    );
+
+    CREATE TABLE IF NOT EXISTS oauth_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider TEXT NOT NULL CHECK (provider IN ('google', 'apple')),
+      provider_user_id TEXT NOT NULL,
+      provider_email TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(provider, provider_user_id)
     );
 
     CREATE TABLE IF NOT EXISTS verification_tokens (
@@ -168,8 +187,35 @@ export function initDatabase() {
       total_amount REAL NOT NULL,
       order_status TEXT NOT NULL DEFAULT 'Pending Seller Confirmation'
         CHECK (order_status IN ('Pending Seller Confirmation', 'Confirmed', 'Processing', 'Ready for Pickup / Dispatch', 'Completed', 'Cancelled')),
+      tracking_stage TEXT NOT NULL DEFAULT 'Order Placed',
+      tracking_location TEXT NOT NULL DEFAULT '',
+      tracking_note TEXT NOT NULL DEFAULT '',
+      estimated_delivery TEXT NOT NULL DEFAULT '',
+      courier_contact TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS order_tracking_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      stage TEXT NOT NULL,
+      location TEXT NOT NULL DEFAULT '',
+      note TEXT NOT NULL DEFAULT '',
+      actor_user_id INTEGER NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS seller_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      buyer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      seller_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+      message TEXT NOT NULL,
+      is_read INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS order_items (
@@ -314,6 +360,23 @@ export function initDatabase() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+
+  // Safe schema migrations for existing SQLite databases
+  const orderCols = (db.prepare(`PRAGMA table_info(orders)`).all() as Array<{ name: string }>).map(
+    (c) => c.name
+  );
+  const missingOrderCols: Array<{ col: string; def: string }> = [
+    { col: 'tracking_stage', def: `TEXT NOT NULL DEFAULT 'Order Placed'` },
+    { col: 'tracking_location', def: `TEXT NOT NULL DEFAULT ''` },
+    { col: 'tracking_note', def: `TEXT NOT NULL DEFAULT ''` },
+    { col: 'estimated_delivery', def: `TEXT NOT NULL DEFAULT ''` },
+    { col: 'courier_contact', def: `TEXT NOT NULL DEFAULT ''` },
+  ];
+  for (const { col, def } of missingOrderCols) {
+    if (!orderCols.includes(col)) {
+      db.exec(`ALTER TABLE orders ADD COLUMN ${col} ${def};`);
+    }
+  }
 
   // Seed official marketplace categories idempotently (no fake products!)
   const defaultCategories = [

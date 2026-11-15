@@ -26,23 +26,23 @@ export function CategoriesPage({ onNavigate }: CategoriesPageProps) {
   const dbMatch = dbCategories.find((c) => c.slug === currentAssetCat.slug);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-8">
-      <div className="border-b border-slate-200 pb-6">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-8">
+      <div className="border-b border-slate-200 pb-5">
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F3A]">
           Marketplace Categories
         </h1>
-        <p className="text-sm text-slate-600 mt-1 max-w-2xl">
+        <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
           These category visual galleries represent each AIDOMART shopping department. Click "Shop Published Listings" in any category to browse genuine items currently listed by approved sellers.
         </p>
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap">
         {AIDOMART_ASSETS.categories.map((cat) => (
           <button
             key={cat.slug}
             type="button"
             onClick={() => setActiveSlug(cat.slug)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+            className={`px-3.5 sm:px-4 min-h-[38px] py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
               activeSlug === cat.slug
                 ? 'bg-[#0B1F3A] text-white'
                 : 'bg-white border border-slate-200 text-slate-700 hover:border-slate-300'
@@ -53,13 +53,13 @@ export function CategoriesPage({ onNavigate }: CategoriesPageProps) {
         ))}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <h2 className="font-display text-xl font-bold text-[#0B1F3A]">
+            <h2 className="font-display text-lg sm:text-xl font-bold text-[#0B1F3A]">
               {currentAssetCat.name} Visual Showcase
             </h2>
-            <p className="text-sm text-slate-600 mt-1">
+            <p className="text-xs sm:text-sm text-slate-600 mt-1">
               {currentAssetCat.description} ·{' '}
               <span className="font-semibold text-[#0B1F3A] tabular-nums">
                 {dbMatch?.productCount ?? 0} published seller listings
@@ -69,18 +69,18 @@ export function CategoriesPage({ onNavigate }: CategoriesPageProps) {
           <button
             type="button"
             onClick={() => onNavigate(`/shop?category=${currentAssetCat.slug}`)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0 self-start sm:self-auto"
           >
             <span>Shop Published {currentAssetCat.name}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
           {currentAssetCat.images.map((imgPath, i) => (
             <div
               key={imgPath}
-              className="aspect-[4/3] rounded-lg overflow-hidden border border-slate-200 bg-slate-100"
+              className="h-24 sm:h-36 rounded-lg overflow-hidden border border-slate-200 bg-slate-100"
             >
               <SafeAssetImage
                 src={imgPath}
@@ -95,7 +95,7 @@ export function CategoriesPage({ onNavigate }: CategoriesPageProps) {
       </div>
 
       {dbCategories.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4">
           <div>
             <h2 className="font-display text-lg font-bold text-[#0B1F3A]">
               All Marketplace Departments
@@ -104,13 +104,13 @@ export function CategoriesPage({ onNavigate }: CategoriesPageProps) {
               Select any department to browse published listings from verified sellers.
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
             {dbCategories.map((cat) => (
               <button
                 key={cat.id}
                 type="button"
                 onClick={() => onNavigate(`/shop?category=${cat.slug}`)}
-                className="p-4 rounded-xl border border-slate-200 hover:border-[#F97316] bg-slate-50/50 hover:bg-white text-left transition-colors space-y-1"
+                className="p-3 sm:p-4 rounded-xl border border-slate-200 hover:border-[#F97316] bg-slate-50/50 hover:bg-white text-left transition-colors space-y-1"
               >
                 <p className="font-display font-bold text-sm text-[#0B1F3A]">{cat.name}</p>
                 {cat.description && (

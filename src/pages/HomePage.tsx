@@ -98,7 +98,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
           style={{ transform: `translateX(-${slideIndex * 100}%)` }}
         >
           {slides.map((slide, idx) => (
-            <div key={slide.src} className="w-full shrink-0 relative h-[360px] sm:h-[460px] lg:h-[520px]">
+            <div key={slide.src} className="w-full shrink-0 relative h-[230px] sm:h-[380px] lg:h-[460px]">
               <SafeAssetImage
                 src={slide.src}
                 alt={slide.title}
@@ -108,18 +108,18 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-r from-[#061325]/90 via-[#0B1F3A]/65 to-transparent" />
-              <div className="absolute inset-0 max-w-7xl mx-auto px-4 sm:px-6 flex items-center">
-                <div className="max-w-xl text-white space-y-4">
-                  <p className="text-xs font-medium text-orange-300 tracking-wide">
+              <div className="absolute inset-0 max-w-7xl mx-auto px-11 sm:px-6 flex items-center">
+                <div className="max-w-xl text-white space-y-2 sm:space-y-4">
+                  <p className="text-[11px] sm:text-xs font-medium text-orange-300 tracking-wide">
                     AIDOMART Multi-Vendor Marketplace · Slide 0{idx + 1} of 0{slides.length}
                   </p>
-                  <h1 className="font-display text-2xl sm:text-4xl lg:text-5xl font-extrabold leading-tight [text-wrap:balance]">
+                  <h1 className="font-display text-lg sm:text-4xl lg:text-5xl font-extrabold leading-tight [text-wrap:balance] line-clamp-2">
                     {slide.title}
                   </h1>
-                  <p className="text-sm sm:text-base text-slate-200 leading-relaxed max-w-lg">
+                  <p className="text-xs sm:text-base text-slate-200 leading-relaxed max-w-lg line-clamp-2 sm:line-clamp-none">
                     {slide.subtitle}
                   </p>
-                  <div className="pt-2 flex flex-wrap items-center gap-3">
+                  <div className="pt-1 sm:pt-2 flex flex-wrap items-center gap-3">
                     <button
                       type="button"
                       onClick={() => {
@@ -129,10 +129,10 @@ export function HomePage({ onNavigate }: HomePageProps) {
                           onNavigate(slide.ctaTarget);
                         }
                       }}
-                      className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-semibold transition-colors"
+                      className="inline-flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-3 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs sm:text-sm font-semibold transition-colors"
                     >
                       <span>{slide.ctaLabel}</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                   </div>
                 </div>
@@ -146,17 +146,17 @@ export function HomePage({ onNavigate }: HomePageProps) {
           type="button"
           onClick={prevSlide}
           aria-label="Previous slide"
-          className="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-950/60 hover:bg-slate-950/85 text-white flex items-center justify-center transition-colors"
+          className="absolute left-2 sm:left-5 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-950/60 hover:bg-slate-950/85 text-white flex items-center justify-center transition-colors"
         >
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
         <button
           type="button"
           onClick={nextSlide}
           aria-label="Next slide"
-          className="absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-950/60 hover:bg-slate-950/85 text-white flex items-center justify-center transition-colors"
+          className="absolute right-2 sm:right-5 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-950/60 hover:bg-slate-950/85 text-white flex items-center justify-center transition-colors"
         >
-          <ChevronRight className="w-5 h-5" />
+          <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
 
         {/* Slide Indicators */}
@@ -186,7 +186,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
           <div className="absolute inset-0 bg-gradient-to-b from-white/90 via-white/85 to-slate-50/95" />
         </div>
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-14 sm:py-16">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-14">
           <div className="max-w-3xl">
             <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F3A] [text-wrap:balance]">
               One marketplace connecting verified independent sellers and buyers
@@ -231,27 +231,27 @@ export function HomePage({ onNavigate }: HomePageProps) {
       </section>
 
       {/* 3. Product Categories (using existing category visuals) */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-14">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+      <section className="max-w-7xl mx-auto px-3 sm:px-6 py-8 sm:py-14">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4 mb-5 sm:mb-8">
           <div>
-            <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F3A]">
+            <h2 className="font-display text-xl sm:text-3xl font-bold text-[#0B1F3A]">
               Explore Marketplace Categories
             </h2>
-            <p className="text-sm text-slate-600 mt-1">
+            <p className="text-xs sm:text-sm text-slate-600 mt-1">
               Category visuals showcase what approved sellers can list in each department.
             </p>
           </div>
           <button
             type="button"
             onClick={() => onNavigate('/categories')}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0B1F3A] hover:text-[#F97316] transition-colors whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-[#0B1F3A] hover:text-[#F97316] transition-colors whitespace-nowrap"
           >
             <span>View all category galleries</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
           {AIDOMART_ASSETS.categories.map((cat) => {
             const count = countBySlug.get(cat.slug) ?? 0;
             return (
@@ -261,7 +261,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 onClick={() => onNavigate(`/shop?category=${cat.slug}`)}
                 className="group text-left bg-white border border-slate-200 rounded-xl overflow-hidden hover:-translate-y-0.5 hover:shadow-md transition-all"
               >
-                <div className="aspect-[4/3] w-full bg-slate-100 overflow-hidden">
+                <div className="h-24 sm:h-40 w-full bg-slate-100 overflow-hidden">
                   <SafeAssetImage
                     src={cat.images[0]}
                     alt={`${cat.name} category visual`}
@@ -270,16 +270,16 @@ export function HomePage({ onNavigate }: HomePageProps) {
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                   />
                 </div>
-                <div className="p-4 flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="font-display text-base font-bold text-[#0B1F3A] group-hover:text-[#F97316] transition-colors">
+                <div className="p-2.5 sm:p-4 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="font-display text-xs sm:text-base font-bold text-[#0B1F3A] group-hover:text-[#F97316] transition-colors truncate">
                       {cat.name}
                     </h3>
-                    <p className="text-xs text-slate-500 mt-0.5 tabular-nums">
-                      {count} published {count === 1 ? 'listing' : 'listings'}
+                    <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 tabular-nums">
+                      {count} {count === 1 ? 'listing' : 'listings'}
                     </p>
                   </div>
-                  <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#F97316] shrink-0" />
+                  <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-hover:text-[#F97316] shrink-0" />
                 </div>
               </button>
             );
@@ -288,7 +288,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
       </section>
 
       {/* 4. Existing Promotional Banners */}
-      <section className="bg-slate-100 border-y border-slate-200 py-14">
+      <section className="bg-slate-100 border-y border-slate-200 py-8 sm:py-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-8">
           <div>
             <h2 className="font-display text-2xl font-bold text-[#0B1F3A]">
@@ -305,7 +305,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 key={banner.src}
                 className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col"
               >
-                <div className="aspect-[16/9] w-full bg-[#0B1F3A]">
+                <div className="h-36 sm:h-auto sm:aspect-[16/9] w-full bg-[#0B1F3A]">
                   <SafeAssetImage
                     src={banner.src}
                     alt={banner.alt}
@@ -348,21 +348,21 @@ export function HomePage({ onNavigate }: HomePageProps) {
       </section>
 
       {/* 5. Genuine Published Products & Approved Sellers (from DB only) */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-14 space-y-12">
+      <section className="max-w-7xl mx-auto px-3 sm:px-6 py-8 sm:py-14 space-y-10 sm:space-y-12">
         <div>
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4 mb-5 sm:mb-6">
             <div>
-              <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F3A]">
+              <h2 className="font-display text-xl sm:text-3xl font-bold text-[#0B1F3A]">
                 Published Marketplace Products
               </h2>
-              <p className="text-sm text-slate-600 mt-1">
+              <p className="text-xs sm:text-sm text-slate-600 mt-1">
                 Genuine inventory listed directly by admin-approved sellers.
               </p>
             </div>
             <button
               type="button"
               onClick={() => onNavigate('/shop')}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] text-white text-xs font-semibold transition-colors whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] text-white text-xs font-semibold transition-colors whitespace-nowrap self-start sm:self-auto"
             >
               <span>Open Full Shop</span>
               <ArrowRight className="w-4 h-4" />
@@ -370,13 +370,13 @@ export function HomePage({ onNavigate }: HomePageProps) {
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3].map((n) => (
-                <div key={n} className="h-80 rounded-xl bg-slate-200 animate-pulse" />
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+              {[1, 2, 3, 4].map((n) => (
+                <div key={n} className="h-60 sm:h-80 rounded-xl bg-slate-200 animate-pulse" />
               ))}
             </div>
           ) : featuredProducts.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-10 text-center space-y-3">
+            <div className="bg-white border border-slate-200 rounded-xl p-8 sm:p-10 text-center space-y-3">
               <Store className="w-9 h-9 text-slate-300 mx-auto" />
               <h3 className="font-display text-base font-bold text-[#0B1F3A]">
                 No seller products published yet
@@ -402,7 +402,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
               {featuredProducts.map((product) => (
                 <ProductCard key={product.id} product={product} onNavigate={onNavigate} />
               ))}
@@ -413,44 +413,44 @@ export function HomePage({ onNavigate }: HomePageProps) {
         {/* Approved Sellers Directory */}
         {approvedSellers.length > 0 && (
           <div>
-            <h2 className="font-display text-2xl font-bold text-[#0B1F3A] mb-6">
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-[#0B1F3A] mb-4 sm:mb-6">
               Approved Independent Sellers
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
               {approvedSellers.map((seller) => (
                 <button
                   key={seller.id}
                   type="button"
                   onClick={() => onNavigate(`/seller/${seller.userId}`)}
-                  className="text-left bg-white border border-slate-200 rounded-xl p-5 hover:border-[#F97316] transition-colors space-y-3"
+                  className="text-left bg-white border border-slate-200 rounded-xl p-3.5 sm:p-5 hover:border-[#F97316] transition-colors space-y-2.5 sm:space-y-3"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5 sm:gap-3">
                     {seller.storefrontImage ? (
                       <SafeAssetImage
                         src={seller.storefrontImage}
                         alt={seller.businessName}
-                        className="w-11 h-11 rounded-full object-cover border border-slate-200 shrink-0"
+                        className="w-9 h-9 sm:w-11 sm:h-11 rounded-full object-cover border border-slate-200 shrink-0"
                       />
                     ) : (
-                      <div className="w-11 h-11 rounded-full bg-[#0B1F3A] text-white flex items-center justify-center shrink-0">
-                        <Store className="w-5 h-5" />
+                      <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-[#0B1F3A] text-white flex items-center justify-center shrink-0">
+                        <Store className="w-4 h-4 sm:w-5 sm:h-5" />
                       </div>
                     )}
                     <div className="min-w-0">
-                      <h3 className="font-display text-sm font-bold text-[#0B1F3A] truncate">
+                      <h3 className="font-display text-xs sm:text-sm font-bold text-[#0B1F3A] truncate">
                         {seller.businessName}
                       </h3>
-                      <p className="text-xs text-slate-500 truncate">
+                      <p className="text-[11px] sm:text-xs text-slate-500 truncate">
                         {seller.locationCity || 'Independent Storefront'}
                       </p>
                     </div>
                   </div>
                   {seller.verifiedBadge && <VerifiedBadge />}
-                  <p className="text-xs text-slate-600 line-clamp-2">
+                  <p className="text-[11px] sm:text-xs text-slate-600 line-clamp-2">
                     {seller.description || 'Visit storefront to browse published products.'}
                   </p>
-                  <p className="text-xs font-semibold text-[#F97316] tabular-nums">
-                    {seller.productCount} published {seller.productCount === 1 ? 'item' : 'items'}
+                  <p className="text-[11px] sm:text-xs font-semibold text-[#F97316] tabular-nums">
+                    {seller.productCount} {seller.productCount === 1 ? 'item' : 'items'}
                   </p>
                 </button>
               ))}

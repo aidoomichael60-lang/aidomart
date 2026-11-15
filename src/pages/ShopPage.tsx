@@ -41,8 +41,8 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
   }, [selectedCategory, searchQuery, sort]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-8">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-6">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 sm:py-10 space-y-5 sm:space-y-8">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
           <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F3A]">
             AIDOMART Shop
@@ -78,11 +78,11 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
       </div>
 
       {/* Category Filter Buttons */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap">
         <button
           type="button"
           onClick={() => setSelectedCategory('')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+          className={`px-3.5 min-h-[38px] py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
             selectedCategory === ''
               ? 'bg-[#0B1F3A] text-white'
               : 'bg-white border border-slate-200 text-slate-700 hover:border-slate-300'
@@ -95,7 +95,7 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
             key={cat.id}
             type="button"
             onClick={() => setSelectedCategory(cat.slug)}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            className={`px-3.5 min-h-[38px] py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
               selectedCategory === cat.slug
                 ? 'bg-[#0B1F3A] text-white'
                 : 'bg-white border border-slate-200 text-slate-700 hover:border-slate-300'
@@ -107,9 +107,9 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
           {[1, 2, 3, 4, 5, 6].map((n) => (
-            <div key={n} className="h-80 rounded-xl bg-slate-200 animate-pulse" />
+            <div key={n} className="h-60 sm:h-80 rounded-xl bg-slate-200 animate-pulse" />
           ))}
         </div>
       ) : products.length === 0 ? (
@@ -137,7 +137,7 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
           {products.map((product) => (
             <ProductCard key={product.id} product={product} onNavigate={onNavigate} />
           ))}

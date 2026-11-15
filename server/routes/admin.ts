@@ -281,10 +281,12 @@ adminRouter.post('/sellers/:profileId/review', async (req: Request, res: Respons
 adminRouter.get('/users', (_req: Request, res: Response) => {
   const users = db
     .prepare(
-      `SELECT id, email, full_name AS fullName, phone, role,
-              email_verified AS emailVerified, account_status AS accountStatus, created_at AS createdAt
-       FROM users
-       ORDER BY created_at DESC`
+      `SELECT u.id, u.email, u.full_name AS fullName, u.phone, u.role,
+              u.email_verified AS emailVerified, u.account_status AS accountStatus, u.created_at AS createdAt,
+              sp.business_name AS businessName
+       FROM users u
+       LEFT JOIN seller_profiles sp ON sp.user_id = u.id
+       ORDER BY u.created_at DESC`
     )
     .all()
     .map((u: any) => ({ ...u, emailVerified: Boolean(u.emailVerified) }));
@@ -422,11 +424,13 @@ adminRouter.get('/complaints', (_req: Request, res: Response) => {
     .prepare(
       `SELECT c.id, c.order_id AS orderId, o.order_reference AS orderReference,
               c.reporter_id AS reporterId, u.full_name AS reporterName, u.role AS reporterRole,
+              sp_rep.business_name AS reporterBusinessName,
               c.target_seller_id AS targetSellerId, sp.business_name AS targetSellerName,
               c.subject, c.message, c.status, c.seller_response AS sellerResponse,
               c.admin_notes AS adminNotes, c.created_at AS createdAt, c.updated_at AS updatedAt
        FROM complaints c
        JOIN users u ON u.id = c.reporter_id
+       LEFT JOIN seller_profiles sp_rep ON sp_rep.user_id = c.reporter_id
        LEFT JOIN orders o ON o.id = c.order_id
        LEFT JOIN seller_profiles sp ON sp.user_id = c.target_seller_id
        ORDER BY c.created_at DESC`

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, MapPin, ShoppingCart, Star, Store } from 'lucide-react';
+import { ArrowLeft, MapPin, MessageSquare, Send, ShoppingCart, Star, Store } from 'lucide-react';
 import { apiRequest } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import type { Product, ProductReview } from '../types/marketplace';
 import { SafeAssetImage } from '../components/SafeAssetImage';
 import { VerifiedBadge } from '../components/VerifiedBadge';
+import { WhatsAppIcon, buildWhatsAppUrl } from '../components/WhatsAppIcon';
 
 interface ProductDetailPageProps {
   productId: number;
@@ -30,6 +31,13 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
   const [comment, setComment] = useState('');
   const [reviewMsg, setReviewMsg] = useState('');
   const [reviewErr, setReviewErr] = useState('');
+
+  // Quick Buyer -> Seller message state
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatText, setChatText] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const [chatFeedback, setChatFeedback] = useState('');
+  const [chatErr, setChatErr] = useState('');
 
   const loadProduct = async () => {
     setLoading(true);
@@ -73,6 +81,30 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
     }
   };
 
+  const handleSendQuickMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!product?.seller || !chatText.trim()) return;
+    setChatSending(true);
+    setChatErr('');
+    setChatFeedback('');
+    try {
+      await apiRequest('/api/buyer/messages', {
+        method: 'POST',
+        body: {
+          sellerId: product.seller.userId,
+          productId: product.id,
+          message: chatText.trim(),
+        },
+      });
+      setChatText('');
+      setChatFeedback('Message sent to seller! You can continue chatting in Buyer Dashboard → Messages.');
+    } catch (err: any) {
+      setChatErr(err.message || 'Could not send message.');
+    } finally {
+      setChatSending(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
@@ -98,7 +130,7 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-12">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 sm:py-10 space-y-8 sm:space-y-12">
       <button
         type="button"
         onClick={() => onNavigate('/shop')}
@@ -108,10 +140,10 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
         <span>Back to Shop</span>
       </button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-start">
         {/* Product Gallery */}
-        <div className="lg:col-span-7 space-y-3">
-          <div className="aspect-[4/3] bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="lg:col-span-7 space-y-2.5 sm:space-y-3">
+          <div className="h-56 sm:h-80 lg:h-[420px] w-full bg-white border border-slate-200 rounded-xl overflow-hidden">
             <SafeAssetImage
               src={product.images[selectedImage] || ''}
               alt={product.title}
@@ -121,13 +153,13 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
             />
           </div>
           {product.images.length > 1 && (
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-5 gap-2 sm:gap-3">
               {product.images.map((img, i) => (
                 <button
                   key={img}
                   type="button"
                   onClick={() => setSelectedImage(i)}
-                  className={`aspect-[4/3] rounded-lg overflow-hidden border-2 ${
+                  className={`h-14 sm:h-16 rounded-lg overflow-hidden border-2 ${
                     i === selectedImage ? 'border-[#F97316]' : 'border-slate-200'
                   }`}
                 >
@@ -139,7 +171,7 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
         </div>
 
         {/* Purchase & Seller Module */}
-        <div className="lg:col-span-5 space-y-6 bg-white border border-slate-200 rounded-xl p-6">
+        <div className="lg:col-span-5 space-y-5 sm:space-y-6 bg-white border border-slate-200 rounded-xl p-4 sm:p-6">
           <div>
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <span>{product.categoryName}</span>
@@ -254,10 +286,104 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
                   {product.seller.deliveryPickupNotes}
                 </p>
               )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!user) {
+                      onNavigate('/login');
+                      return;
+                    }
+                    if (user.role === 'buyer') {
+                      setChatOpen((o) => !o);
+                    } else {
+                      onNavigate(`/seller/${product.seller!.userId}`);
+                    }
+                  }}
+                  className="inline-flex items-center justify-center gap-1.5 min-h-[42px] py-2 px-3 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] text-white text-xs font-semibold transition-colors"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>{user?.role === 'buyer' ? 'Message Seller' : 'Sign In to Chat Seller'}</span>
+                </button>
+
+                {buildWhatsAppUrl(
+                  product.seller.phone,
+                  `Hello ${product.seller.businessName}, I am interested in "${product.title}" on AIDOMART.`
+                ) && (
+                  <a
+                    href={
+                      buildWhatsAppUrl(
+                        product.seller.phone,
+                        `Hello ${product.seller.businessName}, I am interested in "${product.title}" on AIDOMART.`
+                      )!
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 min-h-[42px] py-2 px-3 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold transition-colors"
+                  >
+                    <WhatsAppIcon className="w-4 h-4 shrink-0" />
+                    <span>WhatsApp Seller</span>
+                  </a>
+                )}
+              </div>
+
+              {chatOpen && user?.role === 'buyer' && (
+                <form
+                  onSubmit={handleSendQuickMessage}
+                  className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2.5"
+                >
+                  <label className="block text-[11px] font-semibold text-[#0B1F3A]">
+                    Ask {product.seller.businessName} about {product.title}
+                  </label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={chatText}
+                    onChange={(e) => setChatText(e.target.value)}
+                    placeholder="Ask about size, stock, delivery, or pickup..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white"
+                  />
+                  {chatErr && <p className="text-[11px] text-red-600">{chatErr}</p>}
+                  {chatFeedback && (
+                    <div className="text-[11px] text-emerald-700 space-y-1">
+                      <p>{chatFeedback}</p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onNavigate(`/buyer-dashboard?tab=messages&sellerId=${product.seller!.userId}`)
+                        }
+                        className="font-semibold underline text-[#0B1F3A]"
+                      >
+                        Open Full Chat Thread
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onNavigate(`/buyer-dashboard?tab=messages&sellerId=${product.seller!.userId}`)
+                      }
+                      className="text-[11px] font-semibold text-[#0B1F3A] hover:text-[#F97316]"
+                    >
+                      View all messages
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={chatSending}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold disabled:opacity-60"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>{chatSending ? 'Sending...' : 'Send'}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+
               <button
                 type="button"
                 onClick={() => onNavigate(`/seller/${product.seller!.userId}`)}
-                className="w-full py-2.5 px-4 rounded-lg border border-[#0B1F3A] text-[#0B1F3A] hover:bg-[#0B1F3A] hover:text-white text-xs font-semibold transition-colors"
+                className="w-full min-h-[40px] py-2 px-4 rounded-lg border border-[#0B1F3A] text-[#0B1F3A] hover:bg-[#0B1F3A] hover:text-white text-xs font-semibold transition-colors"
               >
                 Visit Seller Storefront & View All Products
               </button>

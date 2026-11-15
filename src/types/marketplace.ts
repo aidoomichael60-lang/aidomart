@@ -45,6 +45,7 @@ export interface AuthUser {
   login2faEnabled: boolean;
   soundEnabled: boolean;
   accountStatus: 'Active' | 'Restricted' | 'Suspended';
+  sessionCreatedAt?: string;
   sellerProfile?: SellerProfile | null;
 }
 
@@ -123,6 +124,7 @@ export interface Product {
     verifiedBadge: boolean;
     locationCity: string;
     deliveryPickupNotes: string;
+    phone?: string;
   };
   ratingAvg?: number | null;
   reviewCount?: number;
@@ -174,6 +176,15 @@ export interface OrderPayment {
   history: PaymentHistoryEntry[];
 }
 
+export interface OrderTrackingEvent {
+  id: number;
+  stage: string;
+  location: string;
+  note: string;
+  actorRole: string;
+  createdAt: string;
+}
+
 export interface Order {
   id: number;
   orderReference: string;
@@ -185,6 +196,7 @@ export interface Order {
   sellerId: number;
   sellerBusinessName: string;
   sellerVerifiedBadge: boolean;
+  sellerPhone?: string;
   sellerPaymentSettings?: SellerPaymentSettings;
   fulfillmentMethod: 'Delivery' | 'Pickup';
   deliveryAddress: string;
@@ -195,10 +207,52 @@ export interface Order {
   discountAmount: number;
   totalAmount: number;
   orderStatus: OrderStatus;
+  trackingStage?: string;
+  trackingLocation?: string;
+  trackingNote?: string;
+  estimatedDelivery?: string;
+  courierContact?: string;
+  trackingEvents?: OrderTrackingEvent[];
   createdAt: string;
   updatedAt: string;
   items: OrderItem[];
   payment: OrderPayment;
+}
+
+export interface ChatMessage {
+  id: number;
+  buyerId: number;
+  sellerId: number;
+  senderId: number;
+  productId: number | null;
+  productTitle: string | null;
+  orderId: number | null;
+  orderReference: string | null;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface BuyerConversation {
+  sellerId: number;
+  sellerBusinessName: string;
+  sellerVerifiedBadge: boolean;
+  sellerPhone: string;
+  storefrontImage: string | null;
+  unreadCount: number;
+  lastMessage: string;
+  lastAt: string | null;
+  messages: ChatMessage[];
+}
+
+export interface SellerConversation {
+  buyerId: number;
+  buyerName: string;
+  buyerPhone: string;
+  unreadCount: number;
+  lastMessage: string;
+  lastAt: string | null;
+  messages: ChatMessage[];
 }
 
 export interface ProductReview {

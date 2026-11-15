@@ -16,6 +16,7 @@ import { CheckoutPage } from './pages/CheckoutPage';
 import { BuyerDashboard } from './pages/BuyerDashboard';
 import { SellerDashboard } from './pages/SellerDashboard';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { TrackOrderPage } from './pages/TrackOrderPage';
 
 function AppShell() {
   const [locationUrl, setLocationUrl] = useState(() => window.location.pathname + window.location.search);
@@ -74,11 +75,14 @@ function AppShell() {
     if (pathname === '/reset-password') {
       return <AuthPages mode="reset-password" initialQuery={searchParams} onNavigate={navigate} />;
     }
+    if (pathname === '/track-order' || pathname === '/track') {
+      return <TrackOrderPage initialQuery={searchParams} onNavigate={navigate} />;
+    }
     if (pathname === '/buyer-dashboard') {
       return <BuyerDashboard initialQuery={searchParams} onNavigate={navigate} />;
     }
     if (pathname === '/seller-dashboard') {
-      return <SellerDashboard onNavigate={navigate} />;
+      return <SellerDashboard initialQuery={searchParams} onNavigate={navigate} />;
     }
     if (pathname === '/admin') {
       return <AdminDashboard />;

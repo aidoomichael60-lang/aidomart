@@ -102,16 +102,16 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
 
   if (createdOrders.length > 0) {
     return (
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
-        <div className="bg-white border border-slate-200 rounded-xl p-8 space-y-6">
+      <div className="max-w-2xl mx-auto px-3 sm:px-6 py-8 sm:py-12">
+        <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-8 space-y-6">
           <div className="flex items-center gap-3">
             <CheckCircle2 className="w-8 h-8 text-emerald-600 shrink-0" />
             <div>
-              <h1 className="font-display text-2xl font-bold text-[#0B1F3A]">
+              <h1 className="font-display text-xl sm:text-2xl font-bold text-[#0B1F3A]">
                 Order Placed Successfully
               </h1>
-              <p className="text-sm text-slate-600">
-                Your order(s) have been saved and unique references generated.
+              <p className="text-xs sm:text-sm text-slate-600">
+                Your order(s) have been saved with short, Mobile Money–ready tracking codes.
               </p>
             </div>
           </div>
@@ -124,26 +124,35 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
               >
                 <div>
                   <p className="text-xs text-slate-500">Seller: {ord.sellerBusinessName}</p>
-                  <p className="font-mono text-sm font-bold text-[#0B1F3A] mt-0.5">
-                    Ref: {ord.orderReference}
+                  <p className="font-mono text-base font-bold text-[#0B1F3A] mt-0.5">
+                    Code: {ord.orderReference}
                   </p>
                   <p className="text-sm font-mono font-semibold text-[#F97316] tabular-nums">
                     Amount Payable: GHS {ord.totalAmount.toFixed(2)}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onNavigate(`/buyer-dashboard?order=${ord.orderId}`)}
-                  className="px-4 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] text-white text-xs font-semibold whitespace-nowrap"
-                >
-                  View Payment Instructions
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate(`/buyer-dashboard?order=${ord.orderId}`)}
+                    className="px-3.5 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] text-white text-xs font-semibold whitespace-nowrap"
+                  >
+                    Payment Instructions
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate(`/track-order?code=${encodeURIComponent(ord.orderReference)}`)}
+                    className="px-3.5 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold whitespace-nowrap"
+                  >
+                    Track Order
+                  </button>
+                </div>
               </div>
             ))}
           </div>
 
           <p className="text-xs text-slate-600">
-            Include your unique order reference in the Mobile Money or Bank Transfer narration when paying each seller, then click <strong>I Have Made Payment</strong> on the order page.
+            Enter the short 8-character code above in the Mobile Money or Bank Transfer reference field when paying each seller, then click <strong>I Have Made Payment</strong> on your order page.
           </p>
         </div>
       </div>

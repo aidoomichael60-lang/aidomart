@@ -1,14 +1,29 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-import {defineConfig} from 'vite';
+import fs from 'node:fs';
+import path from 'node:path';
+import { defineConfig } from 'vite';
+
+function copyRootStaticPlugin() {
+  return {
+    name: 'copy-root-static-to-dist',
+    closeBundle() {
+      const rootStaticDir = path.resolve(import.meta.dirname, 'static');
+      const distStaticDir = path.resolve(import.meta.dirname, 'dist', 'static');
+      if (fs.existsSync(rootStaticDir)) {
+        fs.mkdirSync(distStaticDir, { recursive: true });
+        fs.cpSync(rootStaticDir, distStaticDir, { recursive: true, force: true });
+      }
+    },
+  };
+}
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), copyRootStaticPlugin()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.'),
       },
     },
     server: {

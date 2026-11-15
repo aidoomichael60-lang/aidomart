@@ -33,6 +33,7 @@ function formatProductRow(row: Record<string, any>) {
       verifiedBadge: Boolean(row.verified_badge),
       locationCity: row.location_city || '',
       deliveryPickupNotes: row.delivery_pickup_notes || '',
+      phone: row.seller_phone || '',
     },
   };
 }
@@ -48,6 +49,7 @@ const PRODUCT_BASE_SELECT = `
          sp.verified_badge,
          sp.location_city,
          sp.delivery_pickup_notes,
+         sp.phone AS seller_phone,
          (SELECT AVG(r.rating) FROM reviews r WHERE r.product_id = p.id) AS rating_avg,
          (SELECT COUNT(*) FROM reviews r WHERE r.product_id = p.id) AS review_count
   FROM products p
@@ -314,5 +316,78 @@ marketplaceRouter.post('/promo/validate', (req: Request, res: Response) => {
     code: promo.code,
     discountPercent: Number(promo.discount_percent),
     expiresAt: promo.expires_at,
+  });
+});
+
+marketplaceRouter.get('/track/:reference', (req: Request, res: Response) => {
+  const ref = sanitizeText(req.params.reference, 40).toUpperCase();
+  if (!ref) {
+    return res.status(400).json({ error: 'Please enter a valid order tracking code.' });
+  }
+
+  const order = db
+    .prepare(
+      `SELECT o.id, o.order_reference, o.fulfillment_method, o.order_status,
+              o.tracking_stage, o.tracking_location, o.tracking_note,
+              o.estimated_delivery, o.courier_contact,
+              o.created_at, o.updated_at,
+              sp.user_id AS seller_user_id, sp.business_name AS seller_business_name,
+              sp.verified_badge AS seller_verified_badge, sp.location_city AS seller_location_city,
+              sp.phone AS seller_phone,
+              p.status AS payment_status
+       FROM orders o
+       JOIN seller_profiles sp ON sp.user_id = o.seller_id
+       LEFT JOIN payments p ON p.order_id = o.id
+       WHERE UPPER(o.order_reference) = ?`
+    )
+    .get(ref) as Record<string, any> | undefined;
+
+  if (!order) {
+    return res.status(404).json({
+      error: `No order found matching code "${ref}". Check your order reference and try again.`,
+    });
+  }
+
+  const items = db
+    .prepare(
+      `SELECT product_title AS productTitle, selected_variation AS selectedVariation,
+              quantity, product_image AS productImage
+       FROM order_items WHERE order_id = ?`
+    )
+    .all(order.id);
+
+  const trackingEvents = db
+    .prepare(
+      `SELECT ote.id, ote.stage, ote.location, ote.note, u.role AS actorRole, ote.created_at AS createdAt
+       FROM order_tracking_events ote
+       JOIN users u ON u.id = ote.actor_user_id
+       WHERE ote.order_id = ?
+       ORDER BY ote.created_at DESC, ote.id DESC`
+    )
+    .all(order.id);
+
+  return res.json({
+    tracking: {
+      orderReference: order.order_reference,
+      fulfillmentMethod: order.fulfillment_method,
+      orderStatus: order.order_status,
+      paymentStatus: order.payment_status || 'Not Reported',
+      trackingStage: order.tracking_stage || 'Order Placed',
+      trackingLocation: order.tracking_location || '',
+      trackingNote: order.tracking_note || '',
+      estimatedDelivery: order.estimated_delivery || '',
+      courierContact: order.courier_contact || '',
+      createdAt: order.created_at,
+      updatedAt: order.updated_at,
+      seller: {
+        userId: order.seller_user_id,
+        businessName: order.seller_business_name,
+        verifiedBadge: Boolean(order.seller_verified_badge),
+        locationCity: order.seller_location_city || '',
+        phone: order.seller_phone || '',
+      },
+      items,
+      trackingEvents,
+    },
   });
 });

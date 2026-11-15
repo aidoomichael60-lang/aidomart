@@ -4,9 +4,18 @@ import type { Request, Response, NextFunction } from 'express';
 const FALLBACK_SECRET = crypto.randomBytes(32).toString('hex');
 
 export function getSessionSecret(): string {
-  return process.env.SESSION_SECRET && process.env.SESSION_SECRET.length >= 16
-    ? process.env.SESSION_SECRET
-    : FALLBACK_SECRET;
+  if (process.env.SESSION_SECRET && process.env.SESSION_SECRET.length >= 16) {
+    return process.env.SESSION_SECRET;
+  }
+  if (process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    const seed =
+      process.env.SITE_ID ||
+      process.env.URL ||
+      process.env.GOOGLE_CLIENT_SECRET ||
+      'aidomart-netlify-fallback-seed';
+    return crypto.createHash('sha256').update(`aidomart:${seed}`).digest('hex');
+  }
+  return FALLBACK_SECRET;
 }
 
 export function hashPassword(password: string): string {
@@ -207,7 +216,10 @@ export function createRateLimiter(options: {
 }
 
 export function generateOrderReference(): string {
-  const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const randomPart = crypto.randomBytes(3).toString('hex').toUpperCase();
-  return `ADM-${datePart}-${randomPart}`;
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let suffix = '';
+  for (let i = 0; i < 6; i++) {
+    suffix += alphabet[crypto.randomInt(0, alphabet.length)];
+  }
+  return `AM${suffix}`;
 }

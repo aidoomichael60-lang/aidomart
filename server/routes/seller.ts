@@ -571,6 +571,16 @@ sellerRouter.get('/orders', (req: Request, res: Response) => {
           .all(payment.id)
       : [];
 
+    const trackingEvents = db
+      .prepare(
+        `SELECT ote.id, ote.stage, ote.location, ote.note, u.role AS actorRole, ote.created_at AS createdAt
+         FROM order_tracking_events ote
+         JOIN users u ON u.id = ote.actor_user_id
+         WHERE ote.order_id = ?
+         ORDER BY ote.created_at DESC, ote.id DESC`
+      )
+      .all(r.id);
+
     return {
       id: r.id,
       orderReference: r.order_reference,
@@ -591,6 +601,12 @@ sellerRouter.get('/orders', (req: Request, res: Response) => {
       discountAmount: Number(r.discount_amount),
       totalAmount: Number(r.total_amount),
       orderStatus: r.order_status,
+      trackingStage: r.tracking_stage || 'Order Placed',
+      trackingLocation: r.tracking_location || '',
+      trackingNote: r.tracking_note || '',
+      estimatedDelivery: r.estimated_delivery || '',
+      courierContact: r.courier_contact || '',
+      trackingEvents,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
       items,
@@ -650,16 +666,40 @@ sellerRouter.patch('/orders/:id/status', async (req: Request, res: Response) => 
     return res.status(404).json({ error: 'Order not found.' });
   }
 
-  db.prepare(`UPDATE orders SET order_status = ?, updated_at = datetime('now') WHERE id = ?`).run(
-    nextStatus,
-    orderId
-  );
+  const statusToStage: Record<string, string> = {
+    'Pending Seller Confirmation': 'Order Placed',
+    Confirmed: 'Confirmed & Preparing',
+    Processing: 'Packed & Preparing Dispatch',
+    'Ready for Pickup / Dispatch': 'Dispatched / Ready for Pickup',
+    Completed: 'Delivered / Completed',
+    Cancelled: 'Cancelled',
+  };
+  const derivedStage = statusToStage[nextStatus] || nextStatus;
+
+  db.transaction(() => {
+    db.prepare(
+      `UPDATE orders
+       SET order_status = ?, tracking_stage = ?, updated_at = datetime('now')
+       WHERE id = ?`
+    ).run(nextStatus, derivedStage, orderId);
+
+    db.prepare(
+      `INSERT INTO order_tracking_events (order_id, stage, location, note, actor_user_id)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(
+      orderId,
+      derivedStage,
+      order.tracking_location || '',
+      `Seller updated order workflow to "${nextStatus}".`,
+      sellerId
+    );
+  })();
 
   createNotification({
     userId: order.buyer_id,
     title: `Order ${order.order_reference} Updated`,
     message: `${order.business_name} updated your order status to: ${nextStatus}.`,
-    link: `/buyer-dashboard?order=${order.id}`,
+    link: `/track-order?code=${order.order_reference}`,
     type: 'order_update',
   });
 
@@ -675,11 +715,105 @@ sellerRouter.patch('/orders/:id/status', async (req: Request, res: Response) => 
       <p>Seller <strong>${escapeHtml(order.business_name)}</strong> has updated order <strong>${escapeHtml(order.order_reference)}</strong> to:</p>
       <p style="font-size:16px;font-weight:700;color:#0B1F3A;">${escapeHtml(nextStatus)}</p>
     `,
-    ctaLabel: 'View Order Details',
-    ctaUrl: `${baseUrl}/buyer-dashboard?order=${order.id}`,
+    ctaLabel: 'Track Your Order',
+    ctaUrl: `${baseUrl}/track-order?code=${encodeURIComponent(order.order_reference)}`,
   });
 
   return res.json({ message: `Order status updated to ${nextStatus}.`, orderStatus: nextStatus });
+});
+
+sellerRouter.post('/orders/:id/tracking', async (req: Request, res: Response) => {
+  const sellerId = req.authUser!.id;
+  const orderId = Number(req.params.id);
+  const trackingStage = sanitizeText(req.body?.trackingStage, 80);
+  const trackingLocation = sanitizeText(req.body?.trackingLocation, 140);
+  const trackingNote = sanitizeText(req.body?.trackingNote, 400);
+  const estimatedDelivery = sanitizeText(req.body?.estimatedDelivery, 100);
+  const courierContact = sanitizeText(req.body?.courierContact, 100);
+  const requestedStatus = sanitizeText(req.body?.orderStatus, 60);
+
+  if (!trackingStage) {
+    return res.status(400).json({ error: 'Please select or enter a tracking stage.' });
+  }
+
+  const order = db
+    .prepare(
+      `SELECT o.*, sp.business_name
+       FROM orders o
+       JOIN seller_profiles sp ON sp.user_id = o.seller_id
+       WHERE o.id = ? AND o.seller_id = ?`
+    )
+    .get(orderId, sellerId) as Record<string, any> | undefined;
+
+  if (!order) {
+    return res.status(404).json({ error: 'Order not found.' });
+  }
+
+  const nextOrderStatus = ALLOWED_ORDER_STATUSES.has(requestedStatus)
+    ? requestedStatus
+    : order.order_status;
+
+  db.transaction(() => {
+    db.prepare(
+      `UPDATE orders
+       SET order_status = ?, tracking_stage = ?, tracking_location = ?, tracking_note = ?,
+           estimated_delivery = ?, courier_contact = ?, updated_at = datetime('now')
+       WHERE id = ?`
+    ).run(
+      nextOrderStatus,
+      trackingStage,
+      trackingLocation,
+      trackingNote,
+      estimatedDelivery,
+      courierContact,
+      orderId
+    );
+
+    db.prepare(
+      `INSERT INTO order_tracking_events (order_id, stage, location, note, actor_user_id)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(
+      orderId,
+      trackingStage,
+      trackingLocation,
+      trackingNote || `Order milestone updated to ${trackingStage}.`,
+      sellerId
+    );
+  })();
+
+  createNotification({
+    userId: order.buyer_id,
+    title: `Tracking Update: ${order.order_reference}`,
+    message: `${order.business_name}: ${trackingStage}${trackingLocation ? ` (${trackingLocation})` : ''}${trackingNote ? ` — ${trackingNote}` : ''}`,
+    link: `/track-order?code=${order.order_reference}`,
+    type: 'tracking_update',
+  });
+
+  const baseUrl = getAppBaseUrl(req);
+  await sendTransactionalEmail({
+    toEmail: order.buyer_email,
+    toName: order.buyer_name,
+    subject: `Tracking Update for Order ${order.order_reference}: ${trackingStage}`,
+    eventType: 'buyer_tracking_update',
+    headline: `Order Tracking Update: ${order.order_reference}`,
+    bodyHtml: `
+      <p>Hello ${escapeHtml(order.buyer_name)},</p>
+      <p><strong>${escapeHtml(order.business_name)}</strong> posted a tracking update for your order <strong>${escapeHtml(order.order_reference)}</strong>:</p>
+      <div style="margin:16px 0;padding:14px 16px;background:#F8FAFC;border:1px solid #CBD5E1;border-radius:8px;">
+        <p style="margin:0 0 6px 0;"><strong>Stage:</strong> ${escapeHtml(trackingStage)}</p>
+        ${trackingLocation ? `<p style="margin:0 0 6px 0;"><strong>Location:</strong> ${escapeHtml(trackingLocation)}</p>` : ''}
+        ${estimatedDelivery ? `<p style="margin:0 0 6px 0;"><strong>Estimated Arrival:</strong> ${escapeHtml(estimatedDelivery)}</p>` : ''}
+        ${courierContact ? `<p style="margin:0 0 6px 0;"><strong>Rider / Courier:</strong> ${escapeHtml(courierContact)}</p>` : ''}
+        ${trackingNote ? `<p style="margin:0;"><strong>Note:</strong> ${escapeHtml(trackingNote)}</p>` : ''}
+      </div>
+    `,
+    ctaLabel: 'Track Order Progress',
+    ctaUrl: `${baseUrl}/track-order?code=${encodeURIComponent(order.order_reference)}`,
+  });
+
+  return res.json({
+    message: `Tracking updated to "${trackingStage}". Buyer has been notified.`,
+  });
 });
 
 sellerRouter.post('/payments/:orderId/verify', async (req: Request, res: Response) => {
@@ -910,4 +1044,107 @@ sellerRouter.post('/reviews/:id/respond', (req: Request, res: Response) => {
 
   db.prepare(`UPDATE reviews SET seller_response = ? WHERE id = ?`).run(response, id);
   return res.json({ message: 'Reply published.' });
+});
+
+sellerRouter.get('/messages', (req: Request, res: Response) => {
+  const sellerId = req.authUser!.id;
+
+  const buyers = db
+    .prepare(
+      `SELECT DISTINCT u.id AS buyerId, u.full_name AS buyerName, u.phone AS buyerPhone
+       FROM seller_messages sm
+       JOIN users u ON u.id = sm.buyer_id
+       WHERE sm.seller_id = ?`
+    )
+    .all(sellerId) as Array<{ buyerId: number; buyerName: string; buyerPhone: string | null }>;
+
+  const msgStmt = db.prepare(
+    `SELECT sm.id, sm.buyer_id AS buyerId, sm.seller_id AS sellerId, sm.sender_id AS senderId,
+            sm.product_id AS productId, p.title AS productTitle,
+            sm.order_id AS orderId, o.order_reference AS orderReference,
+            sm.message, sm.is_read AS isRead, sm.created_at AS createdAt
+     FROM seller_messages sm
+     LEFT JOIN products p ON p.id = sm.product_id
+     LEFT JOIN orders o ON o.id = sm.order_id
+     WHERE sm.seller_id = ? AND sm.buyer_id = ?
+     ORDER BY sm.created_at ASC, sm.id ASC`
+  );
+
+  const conversations = buyers.map((b) => {
+    const messages = msgStmt.all(sellerId, b.buyerId) as Array<Record<string, any>>;
+    const unreadCount = messages.filter((m) => m.senderId !== sellerId && !m.isRead).length;
+    const last = messages[messages.length - 1];
+    const buyerFirstName = b.buyerName.trim().split(/\s+/)[0] || b.buyerName;
+    return {
+      buyerId: b.buyerId,
+      buyerName: buyerFirstName,
+      buyerPhone: b.buyerPhone || '',
+      unreadCount,
+      lastMessage: last ? last.message : '',
+      lastAt: last ? last.createdAt : null,
+      messages: messages.map((m) => ({
+        ...m,
+        isRead: Boolean(m.isRead),
+      })),
+    };
+  });
+
+  conversations.sort((a, b) => String(b.lastAt || '').localeCompare(String(a.lastAt || '')));
+  return res.json({ conversations });
+});
+
+sellerRouter.post('/messages/:buyerId', (req: Request, res: Response) => {
+  const sellerId = req.authUser!.id;
+  const buyerId = Number(req.params.buyerId);
+  const productId = req.body?.productId ? Number(req.body.productId) : null;
+  const orderId = req.body?.orderId ? Number(req.body.orderId) : null;
+  const message = sanitizeText(req.body?.message, 1200);
+
+  if (!Number.isFinite(buyerId)) {
+    return res.status(400).json({ error: 'Valid buyer is required.' });
+  }
+  if (!message) {
+    return res.status(400).json({ error: 'Please write a reply message.' });
+  }
+
+  const profile = getSellerProfileRow(sellerId);
+  const sellerDisplay = profile?.business_name || req.authUser!.fullName;
+
+  const info = db
+    .prepare(
+      `INSERT INTO seller_messages (buyer_id, seller_id, sender_id, product_id, order_id, message)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .run(buyerId, sellerId, sellerId, productId, orderId, message);
+
+  db.prepare(
+    `UPDATE seller_messages SET is_read = 1
+     WHERE buyer_id = ? AND seller_id = ? AND sender_id != ? AND is_read = 0`
+  ).run(buyerId, sellerId, sellerId);
+
+  createNotification({
+    userId: buyerId,
+    title: `Reply from ${sellerDisplay}`,
+    message: message.slice(0, 140),
+    link: `/buyer-dashboard?tab=messages&sellerId=${sellerId}`,
+    type: 'seller_message',
+  });
+
+  return res.status(201).json({
+    message: 'Reply sent to buyer.',
+    id: Number(info.lastInsertRowid),
+  });
+});
+
+sellerRouter.post('/messages/:buyerId/read', (req: Request, res: Response) => {
+  const sellerId = req.authUser!.id;
+  const buyerId = Number(req.params.buyerId);
+  if (!Number.isFinite(buyerId)) {
+    return res.status(400).json({ error: 'Invalid buyer.' });
+  }
+  db.prepare(
+    `UPDATE seller_messages SET is_read = 1
+     WHERE buyer_id = ? AND seller_id = ? AND sender_id != ? AND is_read = 0`
+  ).run(buyerId, sellerId, sellerId);
+  return res.json({ ok: true });
 });
