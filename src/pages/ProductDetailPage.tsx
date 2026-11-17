@@ -153,7 +153,7 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-start">
         {/* Product Gallery */}
-        <div className="lg:col-span-7 space-y-2.5 sm:space-y-3">
+        <div className="lg:col-span-7 min-w-0 space-y-2.5 sm:space-y-3">
           <div className="h-56 sm:h-80 lg:h-[420px] w-full bg-white border border-slate-200 rounded-xl overflow-hidden">
             <SafeAssetImage
               src={product.images[selectedImage] || ''}
@@ -182,7 +182,7 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
         </div>
 
         {/* Purchase & Seller Module */}
-        <div className="lg:col-span-5 space-y-5 sm:space-y-6 bg-white border border-slate-200 rounded-xl p-4 sm:p-6">
+        <div className="lg:col-span-5 min-w-0 space-y-5 sm:space-y-6 bg-white border border-slate-200 rounded-xl p-4 sm:p-6">
           <div>
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <span>{product.categoryName}</span>
@@ -233,8 +233,8 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
             </div>
           )}
 
-          <div className="flex items-end gap-3">
-            <div>
+          <div className="flex items-end gap-3 min-w-0">
+            <div className="shrink-0">
               <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity</label>
               <input
                 type="number"
@@ -242,7 +242,7 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
                 max={Math.max(1, product.stock)}
                 value={quantity}
                 onChange={(e) => setQuantity(Math.max(1, Math.min(product.stock || 1, Number(e.target.value) || 1)))}
-                className="w-20 min-h-[44px] px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono tabular-nums"
+                className="w-20 min-h-[44px] px-3 py-2 border border-slate-300 rounded-lg text-base sm:text-sm font-mono tabular-nums"
               />
             </div>
 
@@ -250,9 +250,9 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
               type="button"
               disabled={product.stock <= 0}
               onClick={() => addToCart(product, quantity, selectedVariation)}
-              className="flex-1 min-h-[44px] py-3 px-4 sm:px-5 rounded-lg bg-[#F97316] hover:bg-[#EA580C] disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors"
+              className="flex-1 min-w-0 min-h-[44px] py-3 px-4 sm:px-5 rounded-lg bg-[#F97316] hover:bg-[#EA580C] disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors"
             >
-              <ShoppingCart className="w-4 h-4" />
+              <ShoppingCart className="w-4 h-4 shrink-0" />
               <span>{product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}</span>
             </button>
           </div>
@@ -281,7 +281,7 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
                     <Store className="w-4 h-4" />
                   </div>
                 )}
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <h2 className="font-display text-sm font-bold text-[#0B1F3A] group-hover:text-[#F97316] transition-colors truncate">
                     {product.seller.businessName}
                   </h2>

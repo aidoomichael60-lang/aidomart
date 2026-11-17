@@ -104,9 +104,9 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
     return (
       <div className="max-w-2xl mx-auto px-3 sm:px-6 py-8 sm:py-12">
         <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-8 space-y-6">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 className="w-8 h-8 text-emerald-600 shrink-0" />
-            <div>
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
               <h1 className="font-display text-xl sm:text-2xl font-bold text-[#0B1F3A]">
                 Order Placed Successfully
               </h1>
@@ -120,18 +120,18 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
             {createdOrders.map((ord) => (
               <div
                 key={ord.orderId}
-                className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0"
               >
-                <div>
-                  <p className="text-xs text-slate-500">Seller: {ord.sellerBusinessName}</p>
-                  <p className="font-mono text-base font-bold text-[#0B1F3A] mt-0.5">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-slate-500 break-words">Seller: {ord.sellerBusinessName}</p>
+                  <p className="font-mono text-base font-bold text-[#0B1F3A] mt-0.5 break-all">
                     Code: {ord.orderReference}
                   </p>
                   <p className="text-sm font-mono font-semibold text-[#F97316] tabular-nums">
                     Amount Payable: GHS {ord.totalAmount.toFixed(2)}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => onNavigate(`/buyer-dashboard?order=${ord.orderId}`)}
@@ -216,7 +216,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
       </h1>
 
       <form onSubmit={handlePlaceOrder} className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-8 items-start">
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-5">
+        <div className="lg:col-span-7 min-w-0 bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-5">
           <h2 className="font-display text-lg font-bold text-[#0B1F3A]">
             Delivery & Pickup Details
           </h2>
@@ -225,7 +225,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
             <button
               type="button"
               onClick={() => setFulfillmentMethod('Delivery')}
-              className={`py-2.5 px-4 rounded-lg border text-sm font-semibold transition-colors ${
+              className={`min-w-0 py-2.5 px-3 sm:px-4 rounded-lg border text-sm font-semibold transition-colors ${
                 fulfillmentMethod === 'Delivery'
                   ? 'border-[#0B1F3A] bg-[#0B1F3A] text-white'
                   : 'border-slate-300 text-slate-700 bg-white'
@@ -236,7 +236,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
             <button
               type="button"
               onClick={() => setFulfillmentMethod('Pickup')}
-              className={`py-2.5 px-4 rounded-lg border text-sm font-semibold transition-colors ${
+              className={`min-w-0 py-2.5 px-3 sm:px-4 rounded-lg border text-sm font-semibold transition-colors ${
                 fulfillmentMethod === 'Pickup'
                   ? 'border-[#0B1F3A] bg-[#0B1F3A] text-white'
                   : 'border-slate-300 text-slate-700 bg-white'
@@ -246,7 +246,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
             </button>
           </div>
 
-          <div>
+          <div className="min-w-0">
             <label className="block text-xs font-semibold text-slate-700 mb-1">
               Contact Telephone Number *
             </label>
@@ -256,12 +256,12 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
               value={buyerPhone}
               onChange={(e) => setBuyerPhone(e.target.value)}
               placeholder="e.g. 0200000000"
-              className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm"
+              className="w-full min-w-0 px-3.5 py-2.5 border border-slate-300 rounded-lg text-base sm:text-sm"
             />
           </div>
 
           {fulfillmentMethod === 'Delivery' && (
-            <div>
+            <div className="min-w-0">
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Delivery Address & Landmark *
               </label>
@@ -271,12 +271,12 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                 value={deliveryAddress}
                 onChange={(e) => setDeliveryAddress(e.target.value)}
                 placeholder="House number, street, area, city"
-                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm"
+                className="w-full min-w-0 px-3.5 py-2.5 border border-slate-300 rounded-lg text-base sm:text-sm"
               />
             </div>
           )}
 
-          <div>
+          <div className="min-w-0">
             <label className="block text-xs font-semibold text-slate-700 mb-1">
               Additional Delivery or Pickup Notes
             </label>
@@ -285,36 +285,36 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
               value={deliveryNotes}
               onChange={(e) => setDeliveryNotes(e.target.value)}
               placeholder="Preferred time or instructions for the seller..."
-              className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm"
+              className="w-full min-w-0 px-3.5 py-2.5 border border-slate-300 rounded-lg text-base sm:text-sm"
             />
           </div>
 
           {sellerGroups.length > 1 && (
-            <div className="p-3.5 rounded-lg bg-orange-50 border border-orange-200 text-xs text-slate-800">
+            <div className="p-3.5 rounded-lg bg-orange-50 border border-orange-200 text-xs text-slate-800 break-words">
               Your cart includes items from <strong>{sellerGroups.length} different sellers</strong>. AIDOMART will create a separate seller-specific order and unique reference for each seller so you can pay each seller directly with no automated payment splitting.
             </div>
           )}
         </div>
 
-        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-5">
+        <div className="lg:col-span-5 min-w-0 bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-5">
           <h2 className="font-display text-lg font-bold text-[#0B1F3A]">Order Summary</h2>
 
           <div className="space-y-4 divide-y divide-slate-100">
             {sellerGroups.map(([sellerId, group]) => (
-              <div key={sellerId} className="pt-3 first:pt-0 space-y-2">
-                <p className="text-xs font-semibold text-[#0B1F3A]">
+              <div key={sellerId} className="pt-3 first:pt-0 space-y-2 min-w-0">
+                <p className="text-xs font-semibold text-[#0B1F3A] break-words">
                   Seller: {group.sellerName}
                 </p>
                 {group.items.map((it) => (
                   <div
                     key={`${it.product.id}-${it.selectedVariation}`}
-                    className="flex justify-between text-xs text-slate-700 gap-2"
+                    className="flex items-start justify-between text-xs text-slate-700 gap-2 min-w-0"
                   >
-                    <span className="truncate">
+                    <span className="min-w-0 flex-1 break-words">
                       {it.product.title}
                       {it.selectedVariation ? ` (${it.selectedVariation})` : ''} × {it.quantity}
                     </span>
-                    <span className="font-mono tabular-nums shrink-0">
+                    <span className="font-mono tabular-nums shrink-0 whitespace-nowrap">
                       GHS {(it.product.price * it.quantity).toFixed(2)}
                     </span>
                   </div>
@@ -324,32 +324,32 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
           </div>
 
           {/* Promo Code */}
-          <div className="pt-4 border-t border-slate-200 space-y-2">
+          <div className="pt-4 border-t border-slate-200 space-y-2 min-w-0">
             <label className="block text-xs font-semibold text-slate-700">
               Promotional Code
             </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <div className="flex gap-2 min-w-0">
+              <div className="relative flex-1 min-w-0">
+                <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   value={promoInput}
                   onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
                   placeholder="Enter promo code"
-                  className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-xs font-mono uppercase"
+                  className="w-full min-w-0 pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-base sm:text-xs font-mono uppercase"
                 />
               </div>
               <button
                 type="button"
                 onClick={handleValidatePromo}
-                className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-800"
+                className="shrink-0 px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-800 whitespace-nowrap"
               >
                 Apply
               </button>
             </div>
-            {promoError && <p className="text-xs text-red-600">{promoError}</p>}
+            {promoError && <p className="text-xs text-red-600 break-words">{promoError}</p>}
             {appliedPromo && (
-              <p className="text-xs text-emerald-700 font-medium">
+              <p className="text-xs text-emerald-700 font-medium break-words">
                 Applied {appliedPromo.code}: {appliedPromo.discountPercent}% discount
               </p>
             )}

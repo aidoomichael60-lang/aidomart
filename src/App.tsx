@@ -96,11 +96,11 @@ function AppShell() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+    <div className="min-h-screen w-full min-w-0 flex flex-col bg-slate-50 text-slate-900 overflow-x-clip">
       <Navbar currentPath={pathname} onNavigate={navigate} />
       <NotificationPopups onNavigate={navigate} />
       <CartDrawer onNavigate={navigate} />
-      <main className="flex-1">{renderRoute()}</main>
+      <main className="flex-1 w-full min-w-0 overflow-x-clip">{renderRoute()}</main>
       <Footer onNavigate={navigate} />
     </div>
   );

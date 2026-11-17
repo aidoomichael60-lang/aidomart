@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Minus, Plus, ShoppingBag, Trash2, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { SafeAssetImage } from './SafeAssetImage';
@@ -10,31 +10,40 @@ interface CartDrawerProps {
 export function CartDrawer({ onNavigate }: CartDrawerProps) {
   const { items, drawerOpen, setDrawerOpen, updateQuantity, removeItem, subtotal } = useCart();
 
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [drawerOpen]);
+
   if (!drawerOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-50 flex justify-end overflow-hidden">
       <div
         className="fixed inset-0 bg-slate-950/50 backdrop-blur-[1px]"
         onClick={() => setDrawerOpen(false)}
       />
-      <aside className="relative z-10 w-full max-w-md bg-white h-full flex flex-col shadow-2xl border-l border-slate-200">
-        <div className="px-4 sm:px-6 py-3.5 sm:py-4 bg-[#0B1F3A] text-white flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-[#F97316]" />
-            <h2 className="font-display text-base font-bold">Your Shopping Cart</h2>
+      <aside className="relative z-10 w-full max-w-md bg-white h-full flex flex-col shadow-2xl border-l border-slate-200 overflow-x-hidden">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 bg-[#0B1F3A] text-white flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <ShoppingBag className="w-5 h-5 text-[#F97316] shrink-0" />
+            <h2 className="font-display text-base font-bold truncate">Your Shopping Cart</h2>
           </div>
           <button
             type="button"
             onClick={() => setDrawerOpen(false)}
             aria-label="Close cart"
-            className="min-w-[38px] min-h-[38px] inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-white/10 text-slate-200"
+            className="min-w-[38px] min-h-[38px] inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-white/10 text-slate-200 shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-4">
           {items.length === 0 ? (
             <div className="py-16 text-center space-y-3">
               <ShoppingBag className="w-10 h-10 text-slate-300 mx-auto" />

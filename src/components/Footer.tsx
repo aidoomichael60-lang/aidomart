@@ -95,10 +95,11 @@ export function Footer({ onNavigate }: FooterProps) {
                 href={AIDOMART_CONTACT.whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="WhatsApp Me directly"
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0F2B4E] hover:bg-[#183C6B] border border-white/15 text-white text-xs font-semibold transition-colors"
               >
-                <WhatsAppIcon className="w-4 h-4 shrink-0" />
-                <span>WhatsApp {AIDOMART_CONTACT.whatsappDisplay}</span>
+                <WhatsAppIcon className="w-5 h-5 shrink-0" />
+                <span>WhatsApp Me</span>
               </a>
             </div>
           </div>

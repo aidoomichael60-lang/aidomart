@@ -375,7 +375,7 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
       </div>
 
       {/* Horizontal Tab Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full min-w-0">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -396,7 +396,7 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
       {/* ORDERS & MANUAL PAYMENTS */}
       {tab === 'orders' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-5 bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="lg:col-span-5 min-w-0 bg-white border border-slate-200 rounded-xl overflow-hidden">
             <div className="px-4 py-3.5 border-b border-slate-200 bg-slate-50">
               <h2 className="font-display text-sm font-bold text-[#0B1F3A]">
                 Your Orders ({orders.length})
@@ -449,13 +449,13 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
             )}
           </div>
 
-          <div className="lg:col-span-7">
+          <div className="lg:col-span-7 min-w-0">
             {selectedOrder ? (
               <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-5 sm:space-y-6">
                 <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-4">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="font-mono text-lg font-bold text-[#0B1F3A]">
+                      <h2 className="font-mono text-lg font-bold text-[#0B1F3A] break-all">
                         {selectedOrder.orderReference}
                       </h2>
                       <button
@@ -488,12 +488,12 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
                     </p>
                   </div>
 
-                  <div className="sm:text-right space-y-1.5">
+                  <div className="sm:text-right space-y-1.5 min-w-0">
                     <div>
                       <button
                         type="button"
                         onClick={() => onNavigate(`/seller/${selectedOrder.sellerId}`)}
-                        className="text-xs font-semibold text-[#0B1F3A] hover:text-[#F97316]"
+                        className="text-xs font-semibold text-[#0B1F3A] hover:text-[#F97316] break-words text-left sm:text-right"
                       >
                         {selectedOrder.sellerBusinessName}
                       </button>
@@ -602,13 +602,13 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
                   {selectedOrder.trackingEvents && selectedOrder.trackingEvents.length > 0 && (
                     <div className="bg-white border border-slate-200 rounded-lg divide-y divide-slate-100">
                       {selectedOrder.trackingEvents.slice(0, 4).map((ev) => (
-                        <div key={ev.id} className="px-3 py-2 flex items-start justify-between gap-2">
-                          <div>
+                        <div key={ev.id} className="px-3 py-2 flex items-start justify-between gap-2 min-w-0">
+                          <div className="min-w-0 flex-1 break-words">
                             <span className="font-semibold text-[#0B1F3A]">
                               {ev.stage}
                               {ev.location ? ` · ${ev.location}` : ''}
                             </span>
-                            {ev.note && <p className="text-slate-600 mt-0.5">{ev.note}</p>}
+                            {ev.note && <p className="text-slate-600 mt-0.5 break-words">{ev.note}</p>}
                           </div>
                           <span className="text-[10px] text-slate-400 shrink-0 tabular-nums">
                             {new Date(ev.createdAt).toLocaleDateString()}
@@ -624,23 +624,23 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
                   <h3 className="text-xs font-semibold text-slate-500">Order Items</h3>
                   <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
                     {selectedOrder.items.map((item) => (
-                      <div key={item.id} className="px-4 py-2.5 flex items-center justify-between text-xs">
-                        <div>
+                      <div key={item.id} className="px-4 py-2.5 flex items-start justify-between gap-3 text-xs min-w-0">
+                        <div className="min-w-0 flex-1 break-words">
                           <span className="font-semibold text-slate-900">{item.productTitle}</span>
                           {item.selectedVariation && (
                             <span className="text-slate-500"> ({item.selectedVariation})</span>
                           )}
                           <span className="text-slate-500"> × {item.quantity}</span>
                         </div>
-                        <span className="font-mono font-semibold tabular-nums">
+                        <span className="font-mono font-semibold tabular-nums shrink-0 whitespace-nowrap">
                           GHS {item.lineTotal.toFixed(2)}
                         </span>
                       </div>
                     ))}
                   </div>
-                  <div className="flex justify-between text-sm font-bold text-[#0B1F3A] pt-2">
+                  <div className="flex justify-between gap-2 text-sm font-bold text-[#0B1F3A] pt-2">
                     <span>Exact Amount Payable</span>
-                    <span className="font-mono tabular-nums">
+                    <span className="font-mono tabular-nums shrink-0 whitespace-nowrap">
                       GHS {selectedOrder.totalAmount.toFixed(2)}
                     </span>
                   </div>
@@ -662,16 +662,16 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {selectedOrder.sellerPaymentSettings?.momoEnabled && (
-                      <div className="p-3 rounded-lg bg-white border border-slate-200 text-xs space-y-1">
+                      <div className="p-3 rounded-lg bg-white border border-slate-200 text-xs space-y-1 min-w-0 break-words">
                         <p className="font-bold text-[#0B1F3A]">
                           Mobile Money ({selectedOrder.sellerPaymentSettings.momoProvider})
                         </p>
                         <p>Account Name: {selectedOrder.sellerPaymentSettings.momoAccountName}</p>
-                        <p className="font-mono font-semibold tabular-nums">
+                        <p className="font-mono font-semibold tabular-nums break-all">
                           Number: {selectedOrder.sellerPaymentSettings.momoNumber}
                         </p>
                         {selectedOrder.sellerPaymentSettings.momoInstructions && (
-                          <p className="text-slate-600 pt-1">
+                          <p className="text-slate-600 pt-1 break-words">
                             {selectedOrder.sellerPaymentSettings.momoInstructions}
                           </p>
                         )}
@@ -679,19 +679,19 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
                     )}
 
                     {selectedOrder.sellerPaymentSettings?.bankEnabled && (
-                      <div className="p-3 rounded-lg bg-white border border-slate-200 text-xs space-y-1">
+                      <div className="p-3 rounded-lg bg-white border border-slate-200 text-xs space-y-1 min-w-0 break-words">
                         <p className="font-bold text-[#0B1F3A]">
                           Bank Transfer ({selectedOrder.sellerPaymentSettings.bankName})
                         </p>
                         <p>Account Name: {selectedOrder.sellerPaymentSettings.bankAccountName}</p>
-                        <p className="font-mono font-semibold tabular-nums">
+                        <p className="font-mono font-semibold tabular-nums break-all">
                           Account No: {selectedOrder.sellerPaymentSettings.bankAccountNumber}
                         </p>
                         {selectedOrder.sellerPaymentSettings.bankBranch && (
                           <p>Branch: {selectedOrder.sellerPaymentSettings.bankBranch}</p>
                         )}
                         {selectedOrder.sellerPaymentSettings.bankInstructions && (
-                          <p className="text-slate-600 pt-1">
+                          <p className="text-slate-600 pt-1 break-words">
                             {selectedOrder.sellerPaymentSettings.bankInstructions}
                           </p>
                         )}
@@ -700,7 +700,7 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
 
                     {!selectedOrder.sellerPaymentSettings?.momoEnabled &&
                       !selectedOrder.sellerPaymentSettings?.bankEnabled && (
-                        <p className="text-xs text-amber-700 col-span-2">
+                        <p className="text-xs text-amber-700 col-span-full">
                           This seller has not configured Mobile Money or Bank Transfer details yet. Please contact the seller or administrator before sending payment.
                         </p>
                       )}
@@ -855,7 +855,7 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
       {/* MESSAGES WITH SELLERS */}
       {tab === 'messages' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="lg:col-span-4 min-w-0 bg-white border border-slate-200 rounded-xl overflow-hidden">
             <div className="px-4 py-3.5 border-b border-slate-200 bg-slate-50">
               <h2 className="font-display text-sm font-bold text-[#0B1F3A]">
                 Seller Conversations ({conversations.length})
@@ -920,7 +920,7 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
             )}
           </div>
 
-          <div className="lg:col-span-8 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
+          <div className="lg:col-span-8 min-w-0 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
             {activeConversation ? (
               <>
                 <div className="px-4 sm:px-6 py-3.5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
@@ -1009,19 +1009,19 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
                   className="p-3 sm:p-4 border-t border-slate-200 bg-white space-y-2"
                 >
                   {chatErr && <p className="text-xs text-red-600">{chatErr}</p>}
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 min-w-0">
                     <input
                       type="text"
                       required
                       value={chatDraft}
                       onChange={(e) => setChatDraft(e.target.value)}
                       placeholder={`Message ${activeConversation.sellerBusinessName}...`}
-                      className="flex-1 min-h-[42px] px-3.5 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm"
+                      className="flex-1 min-w-0 min-h-[42px] px-3.5 py-2 border border-slate-300 rounded-lg text-base sm:text-sm"
                     />
                     <button
                       type="submit"
                       disabled={chatSending}
-                      className="inline-flex items-center gap-1.5 min-h-[42px] px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold disabled:opacity-60"
+                      className="shrink-0 inline-flex items-center gap-1.5 min-h-[42px] px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold disabled:opacity-60"
                     >
                       <Send className="w-3.5 h-3.5" />
                       <span>Send</span>

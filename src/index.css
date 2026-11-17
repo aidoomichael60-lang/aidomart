@@ -13,14 +13,37 @@
 }
 
 @layer base {
-  html,
-  body {
+  html {
     font-family: var(--font-sans);
-    overflow-x: hidden;
+    overflow-x: clip;
+    max-width: 100%;
+    overscroll-behavior-x: none;
+  }
+
+  @media (min-width: 768px) {
+    html {
+      scrollbar-gutter: stable;
+    }
+  }
+
+  body,
+  #root {
+    font-family: var(--font-sans);
+    overflow-x: clip;
+    max-width: 100%;
+    overscroll-behavior-x: none;
   }
 
   h1, h2, h3, h4, .font-display {
     font-family: var(--font-display);
+  }
+
+  @media (max-width: 639px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
   }
 }
 

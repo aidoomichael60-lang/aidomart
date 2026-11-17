@@ -162,7 +162,7 @@ export function PhoneInput({
           value={localNumber}
           onChange={(e) => emitCombined(selectedCountry, e.target.value)}
           placeholder={placeholder}
-          className="w-full min-h-[42px] px-3 py-2 rounded-r-lg text-sm text-slate-900 focus:outline-none"
+          className="flex-1 min-w-0 w-full min-h-[42px] px-3 py-2 rounded-r-lg text-base sm:text-sm text-slate-900 focus:outline-none"
         />
       </div>
 
@@ -177,7 +177,7 @@ export function PhoneInput({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search country or +code..."
-                className="w-full pl-8 pr-2.5 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F97316]"
+                className="w-full min-w-0 pl-8 pr-2.5 py-1.5 text-base sm:text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F97316]"
               />
             </div>
           </div>

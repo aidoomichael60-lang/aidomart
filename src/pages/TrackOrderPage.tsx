@@ -143,21 +143,21 @@ export function TrackOrderPage({ initialQuery, onNavigate }: TrackOrderPageProps
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5 min-w-0">
+          <div className="relative flex-1 min-w-0">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={codeInput}
               onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
               placeholder="Enter order code (e.g. AM7K9P2X)"
-              className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg font-mono text-sm sm:text-base uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[#F97316]"
+              className="w-full min-w-0 pl-10 pr-4 py-3 border border-slate-300 rounded-lg font-mono text-base uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[#F97316]"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="min-h-[44px] px-6 py-3 rounded-lg bg-[#F97316] hover:bg-[#EA580C] disabled:opacity-60 text-white text-sm font-semibold transition-colors whitespace-nowrap"
+            className="shrink-0 min-h-[44px] px-6 py-3 rounded-lg bg-[#F97316] hover:bg-[#EA580C] disabled:opacity-60 text-white text-sm font-semibold transition-colors whitespace-nowrap"
           >
             {loading ? 'Checking...' : 'Track Order'}
           </button>
@@ -247,7 +247,7 @@ export function TrackOrderPage({ initialQuery, onNavigate }: TrackOrderPageProps
 
           {/* Latest Checkpoint Details */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs">
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 min-w-0 break-words">
               <p className="font-semibold text-[#0B1F3A] flex items-center gap-1.5">
                 <Truck className="w-4 h-4 text-[#F97316]" />
                 <span>Latest Dispatch Status</span>
@@ -278,11 +278,11 @@ export function TrackOrderPage({ initialQuery, onNavigate }: TrackOrderPageProps
               )}
             </div>
 
-            <div className="space-y-2 border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-4">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-[#0B1F3A] flex items-center gap-1.5">
-                  <Store className="w-4 h-4 text-[#F97316]" />
-                  <span>{result.seller.businessName}</span>
+            <div className="space-y-2 border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-4 min-w-0 break-words">
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <span className="font-semibold text-[#0B1F3A] flex items-center gap-1.5 min-w-0">
+                  <Store className="w-4 h-4 text-[#F97316] shrink-0" />
+                  <span className="break-words">{result.seller.businessName}</span>
                 </span>
                 {result.seller.verifiedBadge && <VerifiedBadge />}
               </div>
@@ -352,19 +352,19 @@ export function TrackOrderPage({ initialQuery, onNavigate }: TrackOrderPageProps
             ) : (
               <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
                 {result.trackingEvents.map((ev, idx) => (
-                  <div key={ev.id} className="p-3.5 flex items-start justify-between gap-3 text-xs">
-                    <div className="flex items-start gap-2.5">
+                  <div key={ev.id} className="p-3.5 flex items-start justify-between gap-3 text-xs min-w-0">
+                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
                       <CheckCircle2
                         className={`w-4 h-4 mt-0.5 shrink-0 ${
                           idx === 0 ? 'text-[#F97316]' : 'text-emerald-600'
                         }`}
                       />
-                      <div>
+                      <div className="min-w-0 flex-1 break-words">
                         <p className="font-semibold text-[#0B1F3A]">
                           {ev.stage}
                           {ev.location ? ` · ${ev.location}` : ''}
                         </p>
-                        {ev.note && <p className="text-slate-600 mt-0.5">{ev.note}</p>}
+                        {ev.note && <p className="text-slate-600 mt-0.5 break-words">{ev.note}</p>}
                       </div>
                     </div>
                     <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
