@@ -1,0 +1,314 @@
+npm http cache toidentifier@https://registry.npmjs.org/toidentifier/-/toidentifier-1.0.1.tgz 0ms (cache hit)
+npm http cache cjs-module-lexer@https://registry.npmjs.org/cjs-module-lexer/-/cjs-module-lexer-2.3.0.tgz 0ms (cache hit)
+npm http cache json-bigint@https://registry.npmjs.org/json-bigint/-/json-bigint-1.0.0.tgz 0ms (cache hit)
+npm http cache inherits@https://registry.npmjs.org/inherits/-/inherits-2.0.4.tgz 0ms (cache hit)
+npm http cache extend@https://registry.npmjs.org/extend/-/extend-3.0.2.tgz 0ms (cache hit)
+npm http cache node-fetch@https://registry.npmjs.org/node-fetch/-/node-fetch-3.3.2.tgz 0ms (cache hit)
+npm http cache https-proxy-agent@https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-7.0.6.tgz 0ms (cache hit)
+npm http cache agent-base@https://registry.npmjs.org/agent-base/-/agent-base-7.1.4.tgz 0ms (cache hit)
+npm http cache jws@https://registry.npmjs.org/jws/-/jws-4.0.1.tgz 0ms (cache hit)
+npm http cache gaxios@https://registry.npmjs.org/gaxios/-/gaxios-7.3.1.tgz 0ms (cache hit)
+npm http cache google-logging-utils@https://registry.npmjs.org/google-logging-utils/-/google-logging-utils-1.1.3.tgz 0ms (cache hit)
+npm http cache gcp-metadata@https://registry.npmjs.org/gcp-metadata/-/gcp-metadata-8.1.2.tgz 0ms (cache hit)
+npm http cache base64-js@https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz 0ms (cache hit)
+npm http cache ecdsa-sig-formatter@https://registry.npmjs.org/ecdsa-sig-formatter/-/ecdsa-sig-formatter-1.0.11.tgz 0ms (cache hit)
+npm http cache unpipe@https://registry.npmjs.org/unpipe/-/unpipe-1.0.0.tgz 0ms (cache hit)
+npm http cache destroy@https://registry.npmjs.org/destroy/-/destroy-1.2.0.tgz 0ms (cache hit)
+npm http cache ms@https://registry.npmjs.org/ms/-/ms-2.0.0.tgz 0ms (cache hit)
+npm http cache iconv-lite@https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.24.tgz 0ms (cache hit)
+npm http cache raw-body@https://registry.npmjs.org/raw-body/-/raw-body-2.5.3.tgz 0ms (cache hit)
+npm http cache bytes@https://registry.npmjs.org/bytes/-/bytes-3.1.2.tgz 0ms (cache hit)
+npm http cache mime-types@https://registry.npmjs.org/mime-types/-/mime-types-2.1.35.tgz 0ms (cache hit)
+npm http cache vary@https://registry.npmjs.org/vary/-/vary-1.1.2.tgz 0ms (cache hit)
+npm http cache negotiator@https://registry.npmjs.org/negotiator/-/negotiator-0.6.3.tgz 0ms (cache hit)
+npm http cache utils-merge@https://registry.npmjs.org/utils-merge/-/utils-merge-1.0.1.tgz 0ms (cache hit)
+npm http cache statuses@https://registry.npmjs.org/statuses/-/statuses-2.0.2.tgz 0ms (cache hit)
+npm http cache setprototypeof@https://registry.npmjs.org/setprototypeof/-/setprototypeof-1.2.0.tgz 0ms (cache hit)
+npm http cache type-is@https://registry.npmjs.org/type-is/-/type-is-1.6.18.tgz 0ms (cache hit)
+npm http cache serve-static@https://registry.npmjs.org/serve-static/-/serve-static-1.16.3.tgz 0ms (cache hit)
+npm http cache safe-buffer@https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.2.1.tgz 0ms (cache hit)
+npm http cache send@https://registry.npmjs.org/send/-/send-0.19.2.tgz 0ms (cache hit)
+npm http cache qs@https://registry.npmjs.org/qs/-/qs-6.16.2.tgz 0ms (cache hit)
+npm http cache range-parser@https://registry.npmjs.org/range-parser/-/range-parser-1.2.1.tgz 0ms (cache hit)
+npm http cache proxy-addr@https://registry.npmjs.org/proxy-addr/-/proxy-addr-2.0.8.tgz 0ms (cache hit)
+npm http cache path-to-regexp@https://registry.npmjs.org/path-to-regexp/-/path-to-regexp-0.1.13.tgz 0ms (cache hit)
+npm http cache parseurl@https://registry.npmjs.org/parseurl/-/parseurl-1.3.3.tgz 0ms (cache hit)
+npm http cache on-finished@https://registry.npmjs.org/on-finished/-/on-finished-2.4.2.tgz 0ms (cache hit)
+npm http cache methods@https://registry.npmjs.org/methods/-/methods-1.1.2.tgz 0ms (cache hit)
+npm http cache merge-descriptors@https://registry.npmjs.org/merge-descriptors/-/merge-descriptors-1.0.3.tgz 0ms (cache hit)
+npm http cache finalhandler@https://registry.npmjs.org/finalhandler/-/finalhandler-1.3.2.tgz 0ms (cache hit)
+npm http cache fresh@https://registry.npmjs.org/fresh/-/fresh-0.5.2.tgz 0ms (cache hit)
+npm http cache http-errors@https://registry.npmjs.org/http-errors/-/http-errors-2.0.1.tgz 0ms (cache hit)
+npm http cache escape-html@https://registry.npmjs.org/escape-html/-/escape-html-1.0.3.tgz 0ms (cache hit)
+npm http cache encodeurl@https://registry.npmjs.org/encodeurl/-/encodeurl-2.0.3.tgz 0ms (cache hit)
+npm http cache etag@https://registry.npmjs.org/etag/-/etag-1.8.1.tgz 0ms (cache hit)
+npm http cache debug@https://registry.npmjs.org/debug/-/debug-2.6.9.tgz 0ms (cache hit)
+npm http cache depd@https://registry.npmjs.org/depd/-/depd-2.0.0.tgz 0ms (cache hit)
+npm http cache cookie-signature@https://registry.npmjs.org/cookie-signature/-/cookie-signature-1.0.7.tgz 0ms (cache hit)
+npm http cache cookie@https://registry.npmjs.org/cookie/-/cookie-0.7.2.tgz 0ms (cache hit)
+npm http cache content-type@https://registry.npmjs.org/content-type/-/content-type-1.0.5.tgz 0ms (cache hit)
+npm http cache content-disposition@https://registry.npmjs.org/content-disposition/-/content-disposition-0.5.4.tgz 0ms (cache hit)
+npm http cache body-parser@https://registry.npmjs.org/body-parser/-/body-parser-1.20.9.tgz 0ms (cache hit)
+npm http cache array-flatten@https://registry.npmjs.org/array-flatten/-/array-flatten-1.1.1.tgz 0ms (cache hit)
+npm http cache accepts@https://registry.npmjs.org/accepts/-/accepts-1.3.8.tgz 0ms (cache hit)
+npm http cache @esbuild/win32-x64@https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.28.2.tgz 0ms (cache hit)
+npm http cache tapable@https://registry.npmjs.org/tapable/-/tapable-2.3.4.tgz 0ms (cache hit)
+npm http cache graceful-fs@https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.2.12.tgz 0ms (cache hit)
+npm http cache callsite@https://registry.npmjs.org/callsite/-/callsite-1.0.0.tgz 0ms (cache hit)
+npm http cache readdirp@https://registry.npmjs.org/readdirp/-/readdirp-5.1.1.tgz 0ms (cache hit)
+npm http cache type-fest@https://registry.npmjs.org/type-fest/-/type-fest-4.41.0.tgz 0ms (cache hit)
+npm http cache update-browserslist-db@https://registry.npmjs.org/update-browserslist-db/-/update-browserslist-db-1.3.4.tgz 0ms (cache hit)
+npm http cache node-releases@https://registry.npmjs.org/node-releases/-/node-releases-2.0.64.tgz 0ms (cache hit)
+npm http cache baseline-browser-mapping@https://registry.npmjs.org/baseline-browser-mapping/-/baseline-browser-mapping-2.11.37.tgz 0ms (cache hit)
+npm http cache electron-to-chromium@https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.486.tgz 0ms (cache hit)
+npm http cache node-addon-api@https://registry.npmjs.org/node-addon-api/-/node-addon-api-8.9.2.tgz 0ms (cache hit)
+npm http cache postcss-value-parser@https://registry.npmjs.org/postcss-value-parser/-/postcss-value-parser-4.2.0.tgz 0ms (cache hit)
+npm http cache fraction.js@https://registry.npmjs.org/fraction.js/-/fraction.js-5.3.4.tgz 0ms (cache hit)
+npm http cache picocolors@https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz 0ms (cache hit)
+npm http cache caniuse-lite@https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001826.tgz 0ms (cache hit)
+npm http cache browserslist@https://registry.npmjs.org/browserslist/-/browserslist-4.29.5.tgz 0ms (cache hit)
+npm http cache stubborn-fs@https://registry.npmjs.org/stubborn-fs/-/stubborn-fs-2.0.0.tgz 0ms (cache hit)
+npm http cache when-exit@https://registry.npmjs.org/when-exit/-/when-exit-2.1.5.tgz 0ms (cache hit)
+npm http cache urlpattern-polyfill@https://registry.npmjs.org/urlpattern-polyfill/-/urlpattern-polyfill-10.1.0.tgz 0ms (cache hit)
+npm http cache @fastify/busboy@https://registry.npmjs.org/@fastify/busboy/-/busboy-3.2.5.tgz 0ms (cache hit)
+npm http cache @whatwg-node/node-fetch@https://registry.npmjs.org/@whatwg-node/node-fetch/-/node-fetch-0.8.6.tgz 0ms (cache hit)
+npm http cache tslib@https://registry.npmjs.org/tslib/-/tslib-2.9.1.tgz 0ms (cache hit)
+npm http cache @whatwg-node/promise-helpers@https://registry.npmjs.org/@whatwg-node/promise-helpers/-/promise-helpers-1.3.2.tgz 0ms (cache hit)
+npm http cache @whatwg-node/disposablestack@https://registry.npmjs.org/@whatwg-node/disposablestack/-/disposablestack-0.0.6.tgz 0ms (cache hit)
+npm http cache @rolldown/pluginutils@https://registry.npmjs.org/@rolldown/pluginutils/-/pluginutils-1.1.1.tgz 0ms (cache hit)
+npm http cache @whatwg-node/fetch@https://registry.npmjs.org/@whatwg-node/fetch/-/fetch-0.10.13.tgz 0ms (cache hit)
+npm http cache @envelop/instrumentation@https://registry.npmjs.org/@envelop/instrumentation/-/instrumentation-1.0.1.tgz 0ms (cache hit)
+npm http cache @types/http-errors@https://registry.npmjs.org/@types/http-errors/-/http-errors-2.0.5.tgz 0ms (cache hit)
+npm http cache undici-types@https://registry.npmjs.org/undici-types/-/undici-types-6.21.0.tgz 0ms (cache hit)
+npm http cache csstype@https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz 0ms (cache hit)
+npm http cache @types/send@https://registry.npmjs.org/@types/send/-/send-1.2.1.tgz 0ms (cache hit)
+npm http cache @types/serve-static@https://registry.npmjs.org/@types/serve-static/-/serve-static-1.15.10.tgz 0ms (cache hit)
+npm http cache @types/range-parser@https://registry.npmjs.org/@types/range-parser/-/range-parser-1.2.7.tgz 0ms (cache hit)
+npm http cache @types/connect@https://registry.npmjs.org/@types/connect/-/connect-3.4.38.tgz 0ms (cache hit)
+npm http cache @types/qs@https://registry.npmjs.org/@types/qs/-/qs-6.15.1.tgz 0ms (cache hit)
+npm http cache @types/express-serve-static-core@https://registry.npmjs.org/@types/express-serve-static-core/-/express-serve-static-core-4.19.9.tgz 0ms (cache hit)
+npm http cache @types/body-parser@https://registry.npmjs.org/@types/body-parser/-/body-parser-1.19.6.tgz 0ms (cache hit)
+npm http cache @tailwindcss/oxide-win32-x64-msvc@https://registry.npmjs.org/@tailwindcss/oxide-win32-x64-msvc/-/oxide-win32-x64-msvc-4.3.5.tgz 0ms (cache hit)
+npm http cache @jridgewell/resolve-uri@https://registry.npmjs.org/@jridgewell/resolve-uri/-/resolve-uri-3.1.3.tgz 0ms (cache hit)
+npm http cache @jridgewell/trace-mapping@https://registry.npmjs.org/@jridgewell/trace-mapping/-/trace-mapping-0.3.31.tgz 0ms (cache hit)
+npm http cache @jridgewell/gen-mapping@https://registry.npmjs.org/@jridgewell/gen-mapping/-/gen-mapping-0.3.13.tgz 0ms (cache hit)
+npm http cache @jridgewell/sourcemap-codec@https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.6.0.tgz 0ms (cache hit)
+npm http cache source-map-js@https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.2.tgz 0ms (cache hit)
+npm http cache magic-string@https://registry.npmjs.org/magic-string/-/magic-string-1.4.5.tgz 0ms (cache hit)
+npm http cache lightningcss@https://registry.npmjs.org/lightningcss/-/lightningcss-1.33.0.tgz 0ms (cache hit)
+npm http cache jiti@https://registry.npmjs.org/jiti/-/jiti-2.7.0.tgz 0ms (cache hit)
+npm http cache enhanced-resolve@https://registry.npmjs.org/enhanced-resolve/-/enhanced-resolve-5.27.0.tgz 0ms (cache hit)
+npm http cache @jridgewell/remapping@https://registry.npmjs.org/@jridgewell/remapping/-/remapping-2.3.5.tgz 0ms (cache hit)
+npm http cache @tailwindcss/node@https://registry.npmjs.org/@tailwindcss/node/-/node-4.3.5.tgz 0ms (cache hit)
+npm http cache @tailwindcss/oxide@https://registry.npmjs.org/@tailwindcss/oxide/-/oxide-4.3.5.tgz 0ms (cache hit)
+npm http cache @opentelemetry/sdk-trace@https://registry.npmjs.org/@opentelemetry/sdk-trace/-/sdk-trace-2.12.0.tgz 0ms (cache hit)
+npm http cache require-in-the-middle@https://registry.npmjs.org/require-in-the-middle/-/require-in-the-middle-8.0.1.tgz 0ms (cache hit)
+npm http cache @opentelemetry/sdk-trace-base@https://registry.npmjs.org/@opentelemetry/sdk-trace-base/-/sdk-trace-base-2.12.0.tgz 0ms (cache hit)
+npm http cache @opentelemetry/context-async-hooks@https://registry.npmjs.org/@opentelemetry/context-async-hooks/-/context-async-hooks-2.12.0.tgz 0ms (cache hit)
+npm http cache import-in-the-middle@https://registry.npmjs.org/import-in-the-middle/-/import-in-the-middle-3.6.0.tgz 0ms (cache hit)
+npm http cache @opentelemetry/api-logs@https://registry.npmjs.org/@opentelemetry/api-logs/-/api-logs-0.223.2.tgz 0ms (cache hit)
+npm http cache @opentelemetry/semantic-conventions@https://registry.npmjs.org/@opentelemetry/semantic-conventions/-/semantic-conventions-1.45.0.tgz 0ms (cache hit)
+npm http cache @opentelemetry/sdk-trace-node@https://registry.npmjs.org/@opentelemetry/sdk-trace-node/-/sdk-trace-node-2.12.0.tgz 0ms (cache hit)
+npm http cache @opentelemetry/instrumentation@https://registry.npmjs.org/@opentelemetry/instrumentation/-/instrumentation-0.223.2.tgz 0ms (cache hit)
+npm http cache @opentelemetry/core@https://registry.npmjs.org/@opentelemetry/core/-/core-2.12.0.tgz 0ms (cache hit)
+npm http cache @opentelemetry/resources@https://registry.npmjs.org/@opentelemetry/resources/-/resources-2.12.0.tgz 0ms (cache hit)
+npm http cache @opentelemetry/api@https://registry.npmjs.org/@opentelemetry/api/-/api-1.9.1.tgz 0ms (cache hit)
+npm http cache @napi-rs/keyring-win32-x64-msvc@https://registry.npmjs.org/@napi-rs/keyring-win32-x64-msvc/-/keyring-win32-x64-msvc-2.1.2.tgz 0ms (cache hit)
+npm http cache semver@https://registry.npmjs.org/semver/-/semver-7.8.6.tgz 0ms (cache hit)
+npm http cache parse-gitignore@https://registry.npmjs.org/parse-gitignore/-/parse-gitignore-2.0.0.tgz 0ms (cache hit)
+npm http cache empathic@https://registry.npmjs.org/empathic/-/empathic-2.1.0.tgz 0ms (cache hit)
+npm http cache env-paths@https://registry.npmjs.org/env-paths/-/env-paths-3.0.0.tgz 0ms (cache hit)
+npm http cache dot-prop@https://registry.npmjs.org/dot-prop/-/dot-prop-9.0.0.tgz 0ms (cache hit)
+npm http cache dettle@https://registry.npmjs.org/dettle/-/dettle-1.0.5.tgz 0ms (cache hit)
+npm http cache atomically@https://registry.npmjs.org/atomically/-/atomically-2.1.1.tgz 0ms (cache hit)
+npm http cache decache@https://registry.npmjs.org/decache/-/decache-4.6.2.tgz 0ms (cache hit)
+npm http cache chokidar@https://registry.npmjs.org/chokidar/-/chokidar-5.0.0.tgz 0ms (cache hit)
+npm http cache ansis@https://registry.npmjs.org/ansis/-/ansis-4.5.0.tgz 0ms (cache hit)
+npm http cache @whatwg-node/server@https://registry.npmjs.org/@whatwg-node/server/-/server-0.11.0.tgz 0ms (cache hit)
+npm http cache ws@https://registry.npmjs.org/ws/-/ws-8.23.0.tgz 1ms (cache hit)
+npm http cache @napi-rs/keyring@https://registry.npmjs.org/@napi-rs/keyring/-/keyring-2.1.2.tgz 0ms (cache hit)
+npm http cache @netlify/runtime-utils@https://registry.npmjs.org/@netlify/runtime-utils/-/runtime-utils-3.0.1.tgz 0ms (cache hit)
+npm http cache @netlify/otel@https://registry.npmjs.org/@netlify/otel/-/otel-7.0.8.tgz 0ms (cache hit)
+npm http cache @netlify/dev-utils@https://registry.npmjs.org/@netlify/dev-utils/-/dev-utils-6.1.0.tgz 0ms (cache hit)
+npm http cache protobufjs@https://registry.npmjs.org/protobufjs/-/protobufjs-7.6.6.tgz 0ms (cache hit)
+npm http cache p-retry@https://registry.npmjs.org/p-retry/-/p-retry-4.6.2.tgz 0ms (cache hit)
+npm http cache google-auth-library@https://registry.npmjs.org/google-auth-library/-/google-auth-library-10.9.1.tgz 0ms (cache hit)
+npm http cache tsx@https://registry.npmjs.org/tsx/-/tsx-4.23.15.tgz 0ms (cache hit)
+npm http cache tailwindcss@https://registry.npmjs.org/tailwindcss/-/tailwindcss-4.3.5.tgz 0ms (cache hit)
+npm http cache typescript@https://registry.npmjs.org/typescript/-/typescript-7.0.2.tgz 0ms (cache hit)
+npm http cache serverless-http@https://registry.npmjs.org/serverless-http/-/serverless-http-4.0.0.tgz 0ms (cache hit)
+npm http cache react-dom@https://registry.npmjs.org/react-dom/-/react-dom-19.3.1.tgz 0ms (cache hit)
+npm http cache multer@https://registry.npmjs.org/multer/-/multer-2.5.0.tgz 0ms (cache hit)
+npm http cache motion@https://registry.npmjs.org/motion/-/motion-12.43.0.tgz 0ms (cache hit)
+npm http cache lucide-react@https://registry.npmjs.org/lucide-react/-/lucide-react-0.546.0.tgz 0ms (cache hit)
+npm http cache react@https://registry.npmjs.org/react/-/react-19.3.1.tgz 0ms (cache hit)
+npm http cache express@https://registry.npmjs.org/express/-/express-4.22.3.tgz 0ms (cache hit)
+npm http cache esbuild@https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz 0ms (cache hit)
+npm http cache better-sqlite3@https://registry.npmjs.org/better-sqlite3/-/better-sqlite3-13.2.0.tgz 0ms (cache hit)
+npm http cache dotenv@https://registry.npmjs.org/dotenv/-/dotenv-17.4.2.tgz 0ms (cache hit)
+npm http cache postcss@https://registry.npmjs.org/postcss/-/postcss-8.5.33.tgz 0ms (cache hit)
+npm http cache autoprefixer@https://registry.npmjs.org/autoprefixer/-/autoprefixer-10.6.2.tgz 0ms (cache hit)
+npm http cache @vitejs/plugin-react@https://registry.npmjs.org/@vitejs/plugin-react/-/plugin-react-6.3.0.tgz 0ms (cache hit)
+npm http cache @types/react-dom@https://registry.npmjs.org/@types/react-dom/-/react-dom-19.3.0.tgz 0ms (cache hit)
+npm http cache @types/react@https://registry.npmjs.org/@types/react/-/react-19.3.0.tgz 0ms (cache hit)
+npm http cache @types/node@https://registry.npmjs.org/@types/node/-/node-22.20.5.tgz 0ms (cache hit)
+npm http cache @types/multer@https://registry.npmjs.org/@types/multer/-/multer-2.3.0.tgz 0ms (cache hit)
+npm http cache @types/express@https://registry.npmjs.org/@types/express/-/express-4.17.25.tgz 0ms (cache hit)
+npm http cache vite@https://registry.npmjs.org/vite/-/vite-8.3.8.tgz 0ms (cache hit)
+npm http cache @types/better-sqlite3@https://registry.npmjs.org/@types/better-sqlite3/-/better-sqlite3-9.6.0.tgz 0ms (cache hit)
+npm http cache @tailwindcss/vite@https://registry.npmjs.org/@tailwindcss/vite/-/vite-4.3.5.tgz 0ms (cache hit)
+npm http cache @netlify/blobs@https://registry.npmjs.org/@netlify/blobs/-/blobs-11.1.9.tgz 0ms (cache hit)
+npm http cache @google/genai@https://registry.npmjs.org/@google/genai/-/genai-2.32.0.tgz 0ms (cache hit)
+npm http cache ms@https://registry.npmjs.org/ms/-/ms-2.1.3.tgz 0ms (cache hit)
+npm http cache debug@https://registry.npmjs.org/debug/-/debug-4.4.3.tgz 0ms (cache hit)
+npm http cache ms@https://registry.npmjs.org/ms/-/ms-2.1.3.tgz 0ms (cache hit)
+npm http cache @types/send@https://registry.npmjs.org/@types/send/-/send-0.17.6.tgz 0ms (cache hit)
+npm http cache debug@https://registry.npmjs.org/debug/-/debug-4.4.3.tgz 0ms (cache hit)
+npm http cache ms@https://registry.npmjs.org/ms/-/ms-2.1.3.tgz 0ms (cache hit)
+npm http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 2971ms
+npm warn deprecated @opentelemetry/sdk-trace-node@2.12.0: Use @opentelemetry/sdk-trace package
+npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+npm warn deprecated @opentelemetry/sdk-trace-base@2.12.0: Use @opentelemetry/sdk-trace package
+npm info run @google/genai@2.32.0 preinstall node_modules/@google/genai echo 'preinstall: no-op'
+npm info run @google/genai@2.32.0 preinstall { code: 0, signal: null }
+npm info run esbuild@0.28.2 postinstall node_modules/esbuild node install.js
+npm info run protobufjs@7.6.6 postinstall node_modules/protobufjs node scripts/postinstall
+npm info run protobufjs@7.6.6 postinstall { code: 0, signal: null }
+npm info run esbuild@0.28.2 postinstall { code: 0, signal: null }
+
+added 240 packages, and audited 247 packages in 37s
+
+45 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+npm warn install-scripts 3 packages have install scripts not yet covered by allowScripts:
+npm warn install-scripts   @google/genai@2.32.0 (preinstall: echo 'preinstall: no-op')
+npm warn install-scripts   esbuild@0.28.2 (postinstall: node install.js)
+npm warn install-scripts   protobufjs@7.6.6 (postinstall: node scripts/postinstall)
+npm warn install-scripts
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+npm info ok
+
+> react-example@0.0.0 lint
+> tsc --noEmit
+
+
+> react-example@0.0.0 build
+> vite build
+
+vite v8.3.8 building client environment for production...
+✓ 1687 modules transformed.
+computing gzip size...
+dist/index.html                   1.48 kB │ gzip:   0.71 kB
+dist/assets/index-Br9eqL1k.css   52.09 kB │ gzip:   9.09 kB
+dist/assets/index-suTWMen5.js   493.20 kB │ gzip: 122.35 kB
+
+✓ built in 1.17s
+PS C:\Users\PHOCUS\Downloads\aidomart> git status
+fatal: not a git repository (or any of the parent directories): .git
+PS C:\Users\PHOCUS\Downloads\aidomart> git init
+>> git remote add origin https://github.com/aidoomichael60-lang/aidomart.git
+>> git fetch origin
+>> git branch -M main
+>> git reset origin/main
+Initialized empty Git repository in C:/Users/PHOCUS/Downloads/aidomart/.git/
+remote: Enumerating objects: 216, done.
+remote: Counting objects: 100% (216/216), done.
+remote: Compressing objects: 100% (177/177), done.
+remote: Total 216 (delta 34), reused 200 (delta 18), pack-reused 0 (from 0)
+Receiving objects: 100% (216/216), 9.37 MiB | 64.00 KiB/s, done.
+Resolving deltas: 100% (34/34), done.
+From https://github.com/aidoomichael60-lang/aidomart
+ * [new branch]      main       -> origin/main
+Unstaged changes after reset:
+M       bun.lock
+M       netlify.toml
+D       netlify/functions/api.js
+D       netlify/functions/api.py
+M       netlify/functions/api.ts
+D       netlify/functions/requirements.txt
+M       package-lock.json
+M       package.json
+D       public/_redirects
+M       server.ts
+M       server/db.ts
+M       server/middleware.ts
+M       server/routes/admin.ts
+M       server/routes/auth.ts
+M       server/routes/buyer.ts
+M       server/routes/marketplace.ts
+M       server/routes/seller.ts
+M       server/security.ts
+M       src/App.tsx
+M       src/components/Footer.tsx
+M       src/components/Navbar.tsx
+M       src/components/ProductCard.tsx
+M       src/pages/AuthPages.tsx
+M       src/pages/BuyerDashboard.tsx
+M       src/pages/CategoriesPage.tsx
+M       src/pages/CheckoutPage.tsx
+M       src/pages/HomePage.tsx
+M       src/pages/ProductDetailPage.tsx
+M       src/pages/SellerDashboard.tsx
+M       src/pages/SellerStorefrontPage.tsx
+M       src/pages/ShopPage.tsx
+M       src/types/marketplace.ts
+M       src/utils/greeting.ts
+M       vite.config.ts
+PS C:\Users\PHOCUS\Downloads\aidomart> if (!(Test-Path static)) { git checkout origin/main -- static }
+error: pathspec 'static' did not match any file(s) known to git
+PS C:\Users\PHOCUS\Downloads\aidomart> git add .
+>> git commit -m "Update AIDOMART for Netlify deployment"
+>> git push -u origin main
+warning: in the working copy of 'bun.lock', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'netlify.toml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'netlify/functions/api.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'package-lock.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/db.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/middleware.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/routes/admin.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/routes/auth.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/routes/buyer.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/routes/marketplace.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/routes/seller.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/security.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/App.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/Footer.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/Navbar.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/ProductCard.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/AuthPages.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/BuyerDashboard.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/CategoriesPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/CheckoutPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/HomePage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/ProductDetailPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/SellerDashboard.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/SellerStorefrontPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/ShopPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/types/marketplace.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/utils/greeting.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'vite.config.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server/app.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/components/WhatsAppIcon.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/pages/TrackOrderPage.tsx', LF will be replaced by CRLF the next time Git touches it
+Author identity unknown
+
+*** Please tell me who you are.
+
+Run
+
+  git config --global user.email "you@example.com"
+  git config --global user.name "Your Name"
+
+to set your account's default identity.
+Omit --global to set the identity only in this repository.
+
+fatal: unable to auto-detect email address (got 'PHOCUS@DESKTOP-SS8C5RE.(none)')
+branch 'main' set up to track 'origin/main'.
+Everything up-to-date
+PS C:\Users\PHOCUS\Downloads\aidomart> npx netlify-cli login
+>> npx netlify-cli link
+>> npx netlify-cli deploy --prod --build
