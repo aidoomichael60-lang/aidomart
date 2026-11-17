@@ -118,7 +118,7 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
 
       {/* Direct Seller Profiles Strip */}
       {sellers.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl p-3 sm:p-4 space-y-2.5">
+        <div className="bg-white border border-slate-200 rounded-xl p-3 sm:p-4 space-y-2.5 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-bold text-[#0B1F3A]">
               Approved Sellers ({sellers.length})
@@ -126,19 +126,19 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
             <button
               type="button"
               onClick={() => onNavigate('/sellers')}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-[#F97316] hover:underline"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-[#F97316] hover:underline shrink-0"
             >
               <span>Browse all sellers</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <div className="flex flex-wrap items-center gap-2">
             {sellers.map((seller) => (
               <button
                 key={seller.id}
                 type="button"
                 onClick={() => onNavigate(`/seller/${seller.userId}`)}
-                className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-[#F97316] bg-slate-50/70 hover:bg-white transition-colors whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-[#F97316] bg-slate-50/70 hover:bg-white transition-colors max-w-full"
               >
                 {seller.storefrontImage ? (
                   <SafeAssetImage
@@ -152,10 +152,10 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
                     <Store className="w-3 h-3" />
                   </div>
                 )}
-                <span className="text-xs font-semibold text-[#0B1F3A]">
+                <span className="text-xs font-semibold text-[#0B1F3A] truncate">
                   {seller.businessName}
                 </span>
-                <span className="text-[10px] font-mono text-slate-500 tabular-nums">
+                <span className="text-[10px] font-mono text-slate-500 tabular-nums shrink-0">
                   ({seller.productCount})
                 </span>
               </button>
@@ -165,7 +165,7 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
       )}
 
       {/* Category Filter Buttons */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => setSelectedCategory('')}

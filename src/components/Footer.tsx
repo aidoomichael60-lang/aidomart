@@ -11,7 +11,7 @@ export function Footer({ onNavigate }: FooterProps) {
   const [logoFailed, setLogoFailed] = useState(false);
 
   return (
-    <footer id="contact" className="bg-[#0B1F3A] text-slate-200 border-t border-white/10">
+    <footer id="contact" className="w-full max-w-full overflow-x-hidden bg-[#0B1F3A] text-slate-200 border-t border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 grid grid-cols-1 md:grid-cols-3 gap-10">
         <div>
           {!logoFailed ? (

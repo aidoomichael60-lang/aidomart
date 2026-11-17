@@ -41,7 +41,7 @@ export function CategoriesPage({ onNavigate }: CategoriesPageProps) {
         </p>
       </div>
 
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap">
+      <div className="flex flex-wrap items-center gap-2">
         {AIDOMART_ASSETS.categories.map((cat) => (
           <button
             key={cat.slug}

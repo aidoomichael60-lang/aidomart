@@ -93,7 +93,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
   const countBySlug = new Map(categories.map((c) => [c.slug, c.productCount ?? 0]));
 
   return (
-    <div>
+    <div className="w-full max-w-full overflow-x-hidden">
       {/* 1. Full-width Homepage Carousel directly beneath Navigation */}
       <section
         aria-label="AIDOMART Highlights"
@@ -101,14 +101,18 @@ export function HomePage({ onNavigate }: HomePageProps) {
         onMouseLeave={() => setPaused(false)}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className="relative w-full overflow-hidden bg-[#0B1F3A]"
+        className="relative w-full max-w-full h-[220px] sm:h-[360px] lg:h-[440px] overflow-hidden bg-[#0B1F3A]"
       >
-        <div
-          className="flex transition-transform duration-500 ease-out"
-          style={{ transform: `translateX(-${slideIndex * 100}%)` }}
-        >
-          {slides.map((slide, idx) => (
-            <div key={slide.src} className="w-full shrink-0 relative h-[205px] sm:h-[360px] lg:h-[440px]">
+        {slides.map((slide, idx) => {
+          const active = idx === slideIndex;
+          return (
+            <div
+              key={slide.src}
+              aria-hidden={!active}
+              className={`absolute inset-0 w-full h-full transition-opacity duration-500 ease-out ${
+                active ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+              }`}
+            >
               <SafeAssetImage
                 src={slide.src}
                 alt={slide.title}
@@ -117,10 +121,10 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 fallbackSubtitle={`Carousel Slide 0${idx + 1} · ${slide.src}`}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#061325]/90 via-[#0B1F3A]/65 to-transparent" />
-              <div className="absolute inset-0 max-w-7xl mx-auto px-11 sm:px-6 flex items-center">
-                <div className="max-w-xl text-white space-y-1.5 sm:space-y-4">
-                  <p className="text-[10px] sm:text-xs font-medium text-orange-300 tracking-wide">
+              <div className="absolute inset-0 bg-gradient-to-r from-[#061325]/92 via-[#0B1F3A]/72 to-[#061325]/25" />
+              <div className="absolute inset-0 max-w-7xl mx-auto px-11 sm:px-6 flex items-center min-w-0">
+                <div className="w-full max-w-xl min-w-0 text-white space-y-1.5 sm:space-y-4">
+                  <p className="text-[10px] sm:text-xs font-medium text-orange-300 tracking-wide truncate">
                     AIDOMART Multi-Vendor Marketplace · Slide 0{idx + 1} of 0{slides.length}
                   </p>
                   <h1 className="font-display text-base sm:text-4xl lg:text-5xl font-extrabold leading-tight [text-wrap:balance] line-clamp-2">
@@ -148,15 +152,15 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+          );
+        })}
 
         {/* Manual Navigation Controls */}
         <button
           type="button"
           onClick={prevSlide}
           aria-label="Previous slide"
-          className="absolute left-2 sm:left-5 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-950/60 hover:bg-slate-950/85 text-white flex items-center justify-center transition-colors"
+          className="absolute left-2 sm:left-5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-950/60 hover:bg-slate-950/85 text-white flex items-center justify-center transition-colors"
         >
           <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
@@ -164,13 +168,13 @@ export function HomePage({ onNavigate }: HomePageProps) {
           type="button"
           onClick={nextSlide}
           aria-label="Next slide"
-          className="absolute right-2 sm:right-5 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-950/60 hover:bg-slate-950/85 text-white flex items-center justify-center transition-colors"
+          className="absolute right-2 sm:right-5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-950/60 hover:bg-slate-950/85 text-white flex items-center justify-center transition-colors"
         >
           <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
 
         {/* Slide Indicators */}
-        <div className="absolute bottom-2.5 sm:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
+        <div className="absolute bottom-2.5 sm:bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
           {slides.map((s, idx) => (
             <button
               key={s.src}
@@ -185,7 +189,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
         </div>
       </section>
 
-      {/* 2. Compact Marketplace Trust Strip (fast swipe strip on mobile, 3-col on desktop) */}
+      {/* 2. Marketplace Trust Cards (fully visible grid, no horizontal scroll) */}
       <section id="how-it-works" className="relative overflow-hidden border-b border-slate-200 bg-white">
         <div className="absolute inset-0 pointer-events-none">
           <SafeAssetImage
@@ -196,49 +200,49 @@ export function HomePage({ onNavigate }: HomePageProps) {
           <div className="absolute inset-0 bg-gradient-to-b from-white/92 via-white/88 to-slate-50/95" />
         </div>
 
-        <div className="relative max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-10">
-          <div className="max-w-3xl">
+        <div className="relative max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-10 min-w-0">
+          <div className="max-w-3xl min-w-0">
             <h2 className="font-display text-base sm:text-2xl lg:text-3xl font-bold text-[#0B1F3A] [text-wrap:balance]">
               Verified independent sellers, direct manual payments
             </h2>
-            <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-slate-600 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
+            <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-slate-600 leading-snug sm:leading-relaxed">
               Discover authentic listings, pay sellers directly via Mobile Money or Bank Transfer, and track every order with confidence.
             </p>
           </div>
 
-          <div className="mt-3 sm:mt-6 flex md:grid md:grid-cols-3 gap-2.5 sm:gap-5 overflow-x-auto snap-x snap-mandatory pb-1 -mx-3 px-3 md:mx-0 md:px-0 md:overflow-visible">
-            <div className="w-[74vw] max-w-[250px] md:w-auto md:max-w-none shrink-0 snap-start bg-white/95 border border-slate-200 rounded-xl p-3 sm:p-5 space-y-1.5 sm:space-y-2">
+          <div className="mt-4 sm:mt-6 grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-5">
+            <div className="min-w-0 bg-white/95 border border-slate-200 rounded-xl p-3.5 sm:p-5 space-y-1.5 sm:space-y-2">
               <div className="flex items-center gap-2 md:block">
                 <ShieldCheck className="w-4 h-4 sm:w-6 sm:h-6 text-[#F97316] shrink-0" />
                 <h3 className="font-display text-xs sm:text-base font-bold text-[#0B1F3A] md:mt-2">
                   Admin-Vetted Sellers
                 </h3>
               </div>
-              <p className="text-[11px] sm:text-sm text-slate-600 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
+              <p className="text-xs sm:text-sm text-slate-600 leading-snug sm:leading-relaxed">
                 Every seller undergoes administrator review before publishing products.
               </p>
             </div>
 
-            <div className="w-[74vw] max-w-[250px] md:w-auto md:max-w-none shrink-0 snap-start bg-white/95 border border-slate-200 rounded-xl p-3 sm:p-5 space-y-1.5 sm:space-y-2">
+            <div className="min-w-0 bg-white/95 border border-slate-200 rounded-xl p-3.5 sm:p-5 space-y-1.5 sm:space-y-2">
               <div className="flex items-center gap-2 md:block">
                 <Wallet className="w-4 h-4 sm:w-6 sm:h-6 text-[#F97316] shrink-0" />
                 <h3 className="font-display text-xs sm:text-base font-bold text-[#0B1F3A] md:mt-2">
                   Direct Manual Payments
                 </h3>
               </div>
-              <p className="text-[11px] sm:text-sm text-slate-600 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
+              <p className="text-xs sm:text-sm text-slate-600 leading-snug sm:leading-relaxed">
                 Pay sellers directly via MoMo or Bank Transfer with your short order code.
               </p>
             </div>
 
-            <div className="w-[74vw] max-w-[250px] md:w-auto md:max-w-none shrink-0 snap-start bg-white/95 border border-slate-200 rounded-xl p-3 sm:p-5 space-y-1.5 sm:space-y-2">
+            <div className="min-w-0 bg-white/95 border border-slate-200 rounded-xl p-3.5 sm:p-5 space-y-1.5 sm:space-y-2">
               <div className="flex items-center gap-2 md:block">
                 <Truck className="w-4 h-4 sm:w-6 sm:h-6 text-[#F97316] shrink-0" />
                 <h3 className="font-display text-xs sm:text-base font-bold text-[#0B1F3A] md:mt-2">
                   Clear Order & Review Workflow
                 </h3>
               </div>
-              <p className="text-[11px] sm:text-sm text-slate-600 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
+              <p className="text-xs sm:text-sm text-slate-600 leading-snug sm:leading-relaxed">
                 Live tracking milestones, instant email updates, and verified buyer reviews.
               </p>
             </div>
@@ -247,9 +251,9 @@ export function HomePage({ onNavigate }: HomePageProps) {
       </section>
 
       {/* 3. Product Categories */}
-      <section className="max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-12">
-        <div className="flex items-end justify-between gap-3 mb-3.5 sm:mb-6">
-          <div>
+      <section className="max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-12 min-w-0">
+        <div className="flex items-end justify-between gap-3 mb-3.5 sm:mb-6 min-w-0">
+          <div className="min-w-0 flex-1">
             <h2 className="font-display text-lg sm:text-3xl font-bold text-[#0B1F3A]">
               Explore Categories
             </h2>
@@ -275,7 +279,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 key={cat.slug}
                 type="button"
                 onClick={() => onNavigate(`/shop?category=${cat.slug}`)}
-                className="group text-left bg-white border border-slate-200 rounded-xl overflow-hidden hover:-translate-y-0.5 hover:shadow-md transition-all"
+                className="min-w-0 w-full group text-left bg-white border border-slate-200 rounded-xl overflow-hidden hover:-translate-y-0.5 hover:shadow-md transition-all"
               >
                 <div className="h-20 sm:h-40 w-full bg-slate-100 overflow-hidden">
                   <SafeAssetImage
@@ -368,9 +372,9 @@ export function HomePage({ onNavigate }: HomePageProps) {
 
         {/* Approved Sellers Directory */}
         {approvedSellers.length > 0 && (
-          <div>
-            <div className="flex items-end justify-between gap-3 mb-3.5 sm:mb-6">
-              <div>
+          <div className="min-w-0">
+            <div className="flex items-end justify-between gap-3 mb-3.5 sm:mb-6 min-w-0">
+              <div className="min-w-0 flex-1">
                 <h2 className="font-display text-lg sm:text-2xl font-bold text-[#0B1F3A]">
                   Approved Independent Sellers
                 </h2>
@@ -393,10 +397,10 @@ export function HomePage({ onNavigate }: HomePageProps) {
                   key={seller.id}
                   type="button"
                   onClick={() => onNavigate(`/seller/${seller.userId}`)}
-                  className="text-left bg-white border border-slate-200 rounded-xl p-3 sm:p-4 hover:border-[#F97316] transition-colors flex flex-col justify-between gap-2.5"
+                  className="min-w-0 w-full text-left bg-white border border-slate-200 rounded-xl p-3 sm:p-4 hover:border-[#F97316] transition-colors flex flex-col justify-between gap-2.5"
                 >
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
+                  <div className="space-y-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
                       {seller.storefrontImage ? (
                         <SafeAssetImage
                           src={seller.storefrontImage}
@@ -409,7 +413,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
                           <Store className="w-4 h-4" />
                         </div>
                       )}
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <h3 className="font-display text-xs sm:text-sm font-bold text-[#0B1F3A] truncate">
                           {seller.businessName}
                         </h3>
@@ -427,7 +431,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
                     <span>
                       {seller.productCount} {seller.productCount === 1 ? 'item' : 'items'}
                     </span>
-                    <span className="inline-flex items-center gap-0.5 text-[#0B1F3A]">
+                    <span className="inline-flex items-center gap-0.5 text-[#0B1F3A] shrink-0">
                       <span>Visit</span>
                       <ArrowRight className="w-3 h-3" />
                     </span>
@@ -439,10 +443,10 @@ export function HomePage({ onNavigate }: HomePageProps) {
         )}
       </section>
 
-      {/* 5. Marketplace Highlights (Horizontal compact strip on mobile, 2-col on desktop) */}
-      <section className="bg-slate-100 border-t border-slate-200 py-6 sm:py-12">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 space-y-4 sm:space-y-6">
-          <div>
+      {/* 5. Marketplace Highlights (stacked on mobile, 2-col on desktop — no horizontal scroll) */}
+      <section className="bg-slate-100 border-t border-slate-200 py-6 sm:py-12 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 space-y-4 sm:space-y-6 min-w-0">
+          <div className="min-w-0">
             <h2 className="font-display text-lg sm:text-2xl font-bold text-[#0B1F3A]">
               Marketplace Highlights
             </h2>
@@ -451,13 +455,13 @@ export function HomePage({ onNavigate }: HomePageProps) {
             </p>
           </div>
 
-          <div className="flex md:grid md:grid-cols-2 gap-3 sm:gap-6 overflow-x-auto snap-x snap-mandatory pb-1 -mx-3 px-3 md:mx-0 md:px-0 md:overflow-visible">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-6">
             {AIDOMART_ASSETS.homepage.promotionalBanners.map((banner) => (
               <div
                 key={banner.src}
-                className="w-[82vw] max-w-[340px] md:w-auto md:max-w-none shrink-0 snap-start bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col"
+                className="min-w-0 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col"
               >
-                <div className="h-32 sm:h-auto sm:aspect-[16/9] w-full bg-[#0B1F3A]">
+                <div className="aspect-[16/9] w-full bg-[#0B1F3A] overflow-hidden">
                   <SafeAssetImage
                     src={banner.src}
                     alt={banner.alt}
@@ -471,7 +475,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
                   <h3 className="font-display text-sm sm:text-base font-bold text-[#0B1F3A]">
                     {banner.title}
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 mt-1 line-clamp-2 sm:line-clamp-none">
+                  <p className="text-xs sm:text-sm text-slate-600 mt-1">
                     {banner.caption}
                   </p>
                 </div>
@@ -482,7 +486,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
           {promotions.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6 pt-1">
               {promotions.map((promo) => (
-                <div key={promo.id} className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-2">
+                <div key={promo.id} className="min-w-0 bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-2">
                   <p className="text-xs text-slate-500">{promo.sellerBusinessName}</p>
                   <h3 className="font-display text-sm sm:text-base font-bold text-[#0B1F3A]">
                     {promo.title}

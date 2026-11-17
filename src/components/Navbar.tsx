@@ -83,7 +83,7 @@ export function Navbar({ currentPath, onNavigate }: NavbarProps) {
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-[#0B1F3A] text-white border-b border-white/10">
+    <header className="sticky top-0 z-40 w-full max-w-full overflow-x-clip bg-[#0B1F3A] text-white border-b border-white/10">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-8 min-w-0">
         {/* Zone 1: Brand Logo */}
         <button
