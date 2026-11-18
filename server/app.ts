@@ -46,8 +46,8 @@ export function createApp() {
     next();
   });
 
-  app.use(express.json({ limit: '6mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '6mb' }));
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // Security headers
   app.use((_req, res, next) => {
@@ -71,6 +71,9 @@ export function createApp() {
 
   // Serve ONLY public seller/product images (private verification docs are strictly behind admin auth)
   app.use('/uploads/public', express.static(PUBLIC_UPLOAD_DIR));
+  app.use('/uploads', (_req, res) => {
+    res.status(404).json({ error: 'Uploaded asset not found.' });
+  });
 
   // Disable caching on all API routes so auth sessions and newly published items are always fresh
   app.use('/api', (_req, res, next) => {
@@ -106,14 +109,22 @@ export function createApp() {
       res: express.Response,
       _next: express.NextFunction
     ) => {
-      const isMulterLimit = err?.code === 'LIMIT_FILE_SIZE' || err?.code === 'LIMIT_FILE_COUNT';
-      const status =
-        err?.status || (isMulterLimit || err?.message?.includes('Only ') ? 400 : 500);
+      const msgText = typeof err?.message === 'string' ? err.message : '';
+      const isUploadClientErr =
+        err?.name === 'MulterError' ||
+        err?.type === 'entity.too.large' ||
+        err?.code === 'LIMIT_FILE_SIZE' ||
+        err?.code === 'LIMIT_FILE_COUNT' ||
+        err?.code === 'LIMIT_UNEXPECTED_FILE' ||
+        msgText.includes('Only ') ||
+        msgText.includes('Multipart') ||
+        msgText.includes('Unexpected end of form');
+      const status = err?.status || (isUploadClientErr ? 400 : 500);
       const message =
-        err?.code === 'LIMIT_FILE_SIZE'
-          ? 'Uploaded file is too large. Maximum size is 10 MB per image (8 MB for documents).'
-          : status < 500 && err?.message
-            ? err.message
+        err?.code === 'LIMIT_FILE_SIZE' || err?.type === 'entity.too.large'
+          ? 'Uploaded file is too large. Please upload images under 4 MB each (or fewer at once).'
+          : status < 500 && msgText
+            ? msgText
             : 'An unexpected server error occurred.';
       if (status >= 500) {
         console.error('Server error:', err);

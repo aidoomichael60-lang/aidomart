@@ -46,6 +46,7 @@ const ALLOWED_IMAGE_MIME = new Set([
   'image/png',
   'image/webp',
   'image/gif',
+  'image/avif',
 ]);
 
 const ALLOWED_DOC_MIME = new Set([
@@ -57,12 +58,26 @@ const ALLOWED_DOC_MIME = new Set([
   'application/pdf',
 ]);
 
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/pjpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'image/avif': '.avif',
+  'application/pdf': '.pdf',
+};
+
 export const publicImageUpload = multer({
   storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, PUBLIC_UPLOAD_DIR),
+    destination: (_req, _file, cb) => {
+      fs.mkdirSync(PUBLIC_UPLOAD_DIR, { recursive: true });
+      cb(null, PUBLIC_UPLOAD_DIR);
+    },
     filename: (_req, file, cb) => {
       const ext = path.extname(file.originalname).toLowerCase().replace(/[^a-z0-9.]/g, '') || '.jpg';
-      const safeExt = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext) ? ext : '.jpg';
+      const safeExt = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif'].includes(ext) ? ext : '.jpg';
       cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${safeExt}`);
     },
   }),
@@ -77,7 +92,10 @@ export const publicImageUpload = multer({
 
 export const privateDocUpload = multer({
   storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, PRIVATE_UPLOAD_DIR),
+    destination: (_req, _file, cb) => {
+      fs.mkdirSync(PRIVATE_UPLOAD_DIR, { recursive: true });
+      cb(null, PRIVATE_UPLOAD_DIR);
+    },
     filename: (_req, file, cb) => {
       const ext = path.extname(file.originalname).toLowerCase().replace(/[^a-z0-9.]/g, '') || '.pdf';
       const safeExt = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'].includes(ext) ? ext : '.bin';
@@ -86,12 +104,97 @@ export const privateDocUpload = multer({
   }),
   limits: { fileSize: 8 * 1024 * 1024, files: 8 },
   fileFilter: (_req, file, cb) => {
-    if (!ALLOWED_DOC_MIME.has(file.mimetype)) {
+    if (!ALLOWED_DOC_MIME.has(file.mimetype.toLowerCase())) {
       return cb(new Error('Only JPG, PNG, WebP, or PDF documents are permitted.'));
     }
     cb(null, true);
   },
 });
+
+export function maybeMultipart(multerMiddleware: (req: Request, res: Response, next: NextFunction) => void) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const ct = (req.headers['content-type'] || '').toLowerCase();
+    if (ct.includes('multipart/form-data')) {
+      return multerMiddleware(req, res, next);
+    }
+    return next();
+  };
+}
+
+export interface SavedUploadFile {
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+}
+
+export function saveBase64Files(
+  rawFiles: unknown,
+  options: {
+    kind: 'image' | 'document';
+    destDir: string;
+    maxFiles: number;
+    maxFileBytes: number;
+  }
+): SavedUploadFile[] {
+  if (!Array.isArray(rawFiles) || rawFiles.length === 0) {
+    return [];
+  }
+
+  const allowedSet = options.kind === 'image' ? ALLOWED_IMAGE_MIME : ALLOWED_DOC_MIME;
+  fs.mkdirSync(options.destDir, { recursive: true });
+
+  const saved: SavedUploadFile[] = [];
+  for (const item of rawFiles.slice(0, options.maxFiles)) {
+    if (!item || typeof item !== 'object') continue;
+    const rawDataUrl = typeof (item as any).dataUrl === 'string' ? (item as any).dataUrl : '';
+    const rawName = typeof (item as any).name === 'string' ? (item as any).name : 'upload';
+    const declaredType = typeof (item as any).type === 'string' ? (item as any).type.toLowerCase() : '';
+
+    let mimeType = declaredType;
+    let base64Body = rawDataUrl;
+    const dataUrlMatch = /^data:([^;]+);base64,(.+)$/i.exec(rawDataUrl);
+    if (dataUrlMatch) {
+      mimeType = dataUrlMatch[1].toLowerCase();
+      base64Body = dataUrlMatch[2];
+    }
+
+    if (!allowedSet.has(mimeType)) {
+      const err = new Error(
+        options.kind === 'image'
+          ? 'Only JPG, PNG, WebP, or GIF images are permitted.'
+          : 'Only JPG, PNG, WebP, or PDF documents are permitted.'
+      ) as Error & { status?: number };
+      err.status = 400;
+      throw err;
+    }
+
+    const buf = Buffer.from(base64Body, 'base64');
+    if (buf.length === 0) {
+      continue;
+    }
+    if (buf.length > options.maxFileBytes) {
+      const err = new Error('Uploaded file is too large. Please upload a smaller image or document.') as Error & {
+        status?: number;
+      };
+      err.status = 400;
+      throw err;
+    }
+
+    const ext = MIME_TO_EXT[mimeType] || (options.kind === 'image' ? '.jpg' : '.pdf');
+    const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
+    fs.writeFileSync(path.join(options.destDir, filename), buf);
+
+    saved.push({
+      filename,
+      originalName: rawName.slice(0, 180) || filename,
+      mimeType,
+      sizeBytes: buf.length,
+    });
+  }
+
+  return saved;
+}
 
 export function attachSession(req: Request, _res: Response, next: NextFunction) {
   const cookies = parseCookies(req.headers.cookie);

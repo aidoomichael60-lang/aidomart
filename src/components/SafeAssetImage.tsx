@@ -21,10 +21,23 @@ export function SafeAssetImage({
   compact = false,
 }: SafeAssetImageProps) {
   const [failed, setFailed] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     setFailed(false);
+    setRetryCount(0);
   }, [src]);
+
+  const handleImgError = () => {
+    if (src && src.startsWith('/uploads/') && retryCount < 2) {
+      const delayMs = retryCount === 0 ? 700 : 1800;
+      window.setTimeout(() => {
+        setRetryCount((c) => c + 1);
+      }, delayMs);
+      return;
+    }
+    setFailed(true);
+  };
 
   if (failed || !src) {
     if (compact) {
@@ -64,12 +77,17 @@ export function SafeAssetImage({
     );
   }
 
+  const resolvedSrc =
+    retryCount > 0 && src.startsWith('/uploads/')
+      ? `${src}${src.includes('?') ? '&' : '?'}r=${retryCount}`
+      : src;
+
   return (
     <img
-      src={src}
+      src={resolvedSrc}
       alt={alt}
       referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
+      onError={handleImgError}
       className={className}
     />
   );

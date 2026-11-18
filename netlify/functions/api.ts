@@ -153,19 +153,29 @@ async function syncDatabaseFromBlobsIfUpdated(): Promise<void> {
 }
 
 async function restoreUploadsIfNeeded(reqPath: string, method: string): Promise<void> {
-  if (method !== 'GET' || !cachedMiddlewareModule) return;
+  if (!['GET', 'HEAD'].includes(method) || !cachedMiddlewareModule) return;
   const store = getBlobStore();
   if (!store) return;
   const readOpts = getConsistencyOption();
 
   if (reqPath.startsWith('/uploads/public/')) {
-    const fileName = path.basename(reqPath);
+    let rawBase = path.basename(reqPath);
+    try {
+      rawBase = decodeURIComponent(rawBase);
+    } catch {
+      // keep raw filename if malformed URI encoding
+    }
+    const fileName = path.basename(rawBase);
     if (!fileName) return;
     const localPath = path.join(cachedMiddlewareModule.PUBLIC_UPLOAD_DIR, fileName);
     if (fs.existsSync(localPath)) return;
     try {
       const blobKey = `uploads/public/${fileName}`;
-      const data = await store.get(blobKey, { type: 'arrayBuffer', ...readOpts });
+      let data = await store.get(blobKey, { type: 'arrayBuffer', ...readOpts });
+      if (!data || data.byteLength === 0) {
+        await new Promise((r) => setTimeout(r, 120));
+        data = await store.get(blobKey, { type: 'arrayBuffer' });
+      }
       if (data && data.byteLength > 0) {
         fs.mkdirSync(cachedMiddlewareModule.PUBLIC_UPLOAD_DIR, { recursive: true });
         fs.writeFileSync(localPath, Buffer.from(data));
@@ -294,6 +304,9 @@ async function toLambdaEvent(req: Request, context: Record<string, any>) {
   const multiValueHeaders: Record<string, string[]> = {};
   req.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
+    if (lower === 'content-encoding' || lower === 'transfer-encoding') {
+      return;
+    }
     headers[lower] = value;
     multiValueHeaders[lower] = [value];
   });
@@ -319,6 +332,8 @@ async function toLambdaEvent(req: Request, context: Record<string, any>) {
   let isBase64Encoded = false;
   if (!['GET', 'HEAD'].includes(method)) {
     const buf = Buffer.from(await req.arrayBuffer());
+    headers['content-length'] = String(buf.length);
+    multiValueHeaders['content-length'] = [String(buf.length)];
     if (buf.length > 0) {
       body = buf.toString('base64');
       isBase64Encoded = true;

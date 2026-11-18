@@ -5,10 +5,14 @@ import { escapeHtml, sanitizeText } from '../security.ts';
 import { sendAdminAlertEmail, sendTransactionalEmail } from '../email.ts';
 import {
   getAppBaseUrl,
+  maybeMultipart,
+  PRIVATE_UPLOAD_DIR,
   privateDocUpload,
+  PUBLIC_UPLOAD_DIR,
   publicImageUpload,
   requireAuth,
   requireRole,
+  saveBase64Files,
 } from '../middleware.ts';
 
 export const sellerRouter = Router();
@@ -319,14 +323,29 @@ sellerRouter.put('/application', async (req: Request, res: Response) => {
 
 sellerRouter.post(
   '/application/documents',
-  privateDocUpload.array('documents', 6),
+  maybeMultipart(privateDocUpload.array('documents', 6)),
   (req: Request, res: Response) => {
     const sellerId = req.authUser!.id;
     const profile = getSellerProfileRow(sellerId);
     if (!profile) return res.status(404).json({ error: 'Seller profile not found.' });
 
-    const files = (req.files as Express.Multer.File[]) || [];
-    if (files.length === 0) {
+    const multipartFiles = (req.files as Express.Multer.File[]) || [];
+    const savedList =
+      multipartFiles.length > 0
+        ? multipartFiles.map((f) => ({
+            filename: f.filename,
+            originalName: f.originalname.slice(0, 180),
+            mimeType: f.mimetype,
+            sizeBytes: f.size,
+          }))
+        : saveBase64Files(req.body?.files, {
+            kind: 'document',
+            destDir: PRIVATE_UPLOAD_DIR,
+            maxFiles: 6,
+            maxFileBytes: 8 * 1024 * 1024,
+          });
+
+    if (savedList.length === 0) {
       return res.status(400).json({ error: 'Please select at least one valid JPG, PNG, WebP, or PDF file.' });
     }
 
@@ -336,8 +355,8 @@ sellerRouter.post(
        VALUES (?, ?, ?, ?, ?, ?)`
     );
 
-    for (const file of files) {
-      insertDoc.run(profile.id, file.originalname.slice(0, 180), file.filename, file.mimetype, file.size, docType);
+    for (const file of savedList) {
+      insertDoc.run(profile.id, file.originalName, file.filename, file.mimeType, file.sizeBytes, docType);
     }
 
     db.prepare(
@@ -350,7 +369,7 @@ sellerRouter.post(
       profile.application_status,
       profile.verified_badge,
       profile.physical_inspection_conducted,
-      `Uploaded ${files.length} verification document(s): ${files.map((f) => f.originalname).join(', ').slice(0, 200)}`
+      `Uploaded ${savedList.length} verification document(s): ${savedList.map((f) => f.originalName).join(', ').slice(0, 200)}`
     );
 
     recordActivityLog({
@@ -358,30 +377,62 @@ sellerRouter.post(
       actorEmail: profile.email,
       actorRole: 'seller',
       eventType: 'seller_docs_uploaded',
-      summary: `${profile.business_name} uploaded ${files.length} verification document(s)`,
+      summary: `${profile.business_name} uploaded ${savedList.length} verification document(s)`,
     });
 
     return res.status(201).json({
-      message: `${files.length} verification document(s) uploaded for administrator review.`,
+      message: `${savedList.length} verification document(s) uploaded for administrator review.`,
     });
   }
 );
 
 sellerRouter.post(
   '/profile/photos',
-  publicImageUpload.array('photos', 5),
+  maybeMultipart(publicImageUpload.array('photos', 5)),
   (req: Request, res: Response) => {
     const sellerId = req.authUser!.id;
     const profile = getSellerProfileRow(sellerId);
     if (!profile) return res.status(404).json({ error: 'Seller profile not found.' });
 
-    const files = (req.files as Express.Multer.File[]) || [];
-    if (files.length === 0) {
+    const kind = req.body?.kind === 'storefront' ? 'storefront' : 'business';
+    const existingUrl = sanitizeText(req.body?.existingUrl, 300);
+
+    if (kind === 'storefront' && existingUrl && existingUrl.startsWith('/uploads/public/')) {
+      db.prepare(`UPDATE seller_profiles SET storefront_image = ?, updated_at = datetime('now') WHERE id = ?`).run(
+        existingUrl,
+        profile.id
+      );
+      recordActivityLog({
+        actorUserId: sellerId,
+        actorEmail: profile.email,
+        actorRole: 'seller',
+        eventType: 'seller_photo_updated',
+        summary: `${profile.business_name} set a new storefront profile picture`,
+      });
+      const refreshed = getSellerProfileRow(sellerId);
+      return res.json({
+        message: 'Storefront profile picture updated.',
+        storefrontImage: existingUrl,
+        profile: refreshed ? formatSellerProfile(refreshed) : null,
+      });
+    }
+
+    const multipartFiles = (req.files as Express.Multer.File[]) || [];
+    const savedList =
+      multipartFiles.length > 0
+        ? multipartFiles.map((f) => ({ filename: f.filename }))
+        : saveBase64Files(req.body?.files, {
+            kind: 'image',
+            destDir: PUBLIC_UPLOAD_DIR,
+            maxFiles: 5,
+            maxFileBytes: 10 * 1024 * 1024,
+          });
+
+    if (savedList.length === 0) {
       return res.status(400).json({ error: 'Please choose at least one JPG, PNG, WebP, or GIF image.' });
     }
 
-    const kind = req.body?.kind === 'storefront' ? 'storefront' : 'business';
-    const urls = files.map((f) => `/uploads/public/${f.filename}`);
+    const urls = savedList.map((f) => `/uploads/public/${f.filename}`);
 
     if (kind === 'storefront') {
       db.prepare(`UPDATE seller_profiles SET storefront_image = ?, updated_at = datetime('now') WHERE id = ?`).run(
@@ -425,7 +476,7 @@ sellerRouter.post(
       actorEmail: profile.email,
       actorRole: 'seller',
       eventType: 'seller_gallery_updated',
-      summary: `${profile.business_name} added ${files.length} business gallery photo(s)`,
+      summary: `${profile.business_name} added ${savedList.length} business gallery photo(s)`,
     });
     const refreshed = getSellerProfileRow(sellerId);
     return res.json({
@@ -644,17 +695,27 @@ sellerRouter.get('/products', (req: Request, res: Response) => {
 
 sellerRouter.post(
   '/products/upload-images',
-  publicImageUpload.array('images', 5),
+  maybeMultipart(publicImageUpload.array('images', 5)),
   (req: Request, res: Response) => {
     const profile = getSellerProfileRow(req.authUser!.id);
     if (!profile || profile.application_status !== 'Approved') {
       return res.status(403).json({ error: 'Only approved sellers can upload product images.' });
     }
-    const files = (req.files as Express.Multer.File[]) || [];
-    if (files.length === 0) {
+    const multipartFiles = (req.files as Express.Multer.File[]) || [];
+    const savedList =
+      multipartFiles.length > 0
+        ? multipartFiles.map((f) => ({ filename: f.filename }))
+        : saveBase64Files(req.body?.files, {
+            kind: 'image',
+            destDir: PUBLIC_UPLOAD_DIR,
+            maxFiles: 5,
+            maxFileBytes: 10 * 1024 * 1024,
+          });
+
+    if (savedList.length === 0) {
       return res.status(400).json({ error: 'Please select valid JPG, PNG, or WebP product images.' });
     }
-    return res.status(201).json({ images: files.map((f) => `/uploads/public/${f.filename}`) });
+    return res.status(201).json({ images: savedList.map((f) => `/uploads/public/${f.filename}`) });
   }
 );
 

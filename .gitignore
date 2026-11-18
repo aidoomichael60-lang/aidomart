@@ -12,5 +12,3 @@ coverage/
 *.sqlite*
 uploads/
 
-
-.netlify/

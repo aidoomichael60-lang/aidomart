@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, MapPin, MessageSquare, Send, ShoppingCart, Star, Store } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, MapPin, MessageSquare, Pencil, Send, ShoppingCart, Star, Store, X, ZoomIn } from 'lucide-react';
 import { apiRequest, subscribeDataChanged } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -21,6 +21,7 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
   const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [eligibleOrderId, setEligibleOrderId] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [selectedVariation, setSelectedVariation] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -64,9 +65,10 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
   }, [productId]);
 
   useEffect(() => {
+    setSelectedImage(0);
     setLoading(true);
     loadProduct();
-  }, [loadProduct, user?.id]);
+  }, [loadProduct, productId, user?.id]);
 
   useEffect(() => {
     return subscribeDataChanged(() => {
@@ -154,7 +156,7 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-start">
         {/* Product Gallery */}
         <div className="lg:col-span-7 min-w-0 space-y-2.5 sm:space-y-3">
-          <div className="h-56 sm:h-80 lg:h-[420px] w-full bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="relative h-56 sm:h-80 lg:h-[420px] w-full bg-white border border-slate-200 rounded-xl overflow-hidden group">
             <SafeAssetImage
               src={product.images[selectedImage] || ''}
               alt={product.title}
@@ -162,12 +164,25 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
               fallbackSubtitle={product.categoryName}
               className="w-full h-full object-cover"
             />
+            {product.images.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setLightboxOpen(true)}
+                aria-label="View product photo full size"
+                className="absolute inset-0 flex items-end justify-end p-3 bg-black/0 hover:bg-black/15 transition-colors"
+              >
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/75 text-white text-xs font-semibold shadow-sm">
+                  <ZoomIn className="w-3.5 h-3.5" />
+                  <span>View full size{product.images.length > 1 ? ` (${selectedImage + 1}/${product.images.length})` : ''}</span>
+                </span>
+              </button>
+            )}
           </div>
           {product.images.length > 1 && (
             <div className="grid grid-cols-5 gap-2 sm:gap-3">
               {product.images.map((img, i) => (
                 <button
-                  key={img}
+                  key={`${img}-${i}`}
                   type="button"
                   onClick={() => setSelectedImage(i)}
                   className={`h-14 sm:h-16 rounded-lg overflow-hidden border-2 ${
@@ -256,6 +271,22 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
               <span>{product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}</span>
             </button>
           </div>
+
+          {user?.role === 'seller' && user.id === product.sellerId && (
+            <div className="p-3 rounded-lg bg-orange-50 border border-orange-200 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-medium text-slate-800">
+                You own this published product.
+              </span>
+              <button
+                type="button"
+                onClick={() => onNavigate(`/seller-dashboard?tab=products&editProduct=${product.id}`)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] text-white text-xs font-semibold transition-colors"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Edit in Dashboard</span>
+              </button>
+            </div>
+          )}
 
           {/* Seller Profile Box */}
           {product.seller && (
@@ -487,6 +518,67 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
           </div>
         )}
       </section>
+
+      {/* Full-Size Image Lightbox */}
+      {lightboxOpen && product.images.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setLightboxOpen(false)}
+        >
+          <div
+            className="relative max-w-4xl w-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-700 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 text-white">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold truncate">{product.title}</p>
+                <p className="text-[11px] text-slate-400">
+                  Image {selectedImage + 1} of {product.images.length}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLightboxOpen(false)}
+                className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800"
+                aria-label="Close image preview"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="relative bg-black flex items-center justify-center max-h-[75vh] min-h-[280px]">
+              <SafeAssetImage
+                src={product.images[selectedImage] || ''}
+                alt={`${product.title} full view`}
+                className="max-h-[75vh] w-auto max-w-full object-contain"
+              />
+              {product.images.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedImage((idx) => (idx - 1 + product.images.length) % product.images.length)
+                    }
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/65 hover:bg-black/85 text-white flex items-center justify-center"
+                    aria-label="Previous product image"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedImage((idx) => (idx + 1) % product.images.length)
+                    }
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/65 hover:bg-black/85 text-white flex items-center justify-center"
+                    aria-label="Next product image"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

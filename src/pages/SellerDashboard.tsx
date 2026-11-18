@@ -1,23 +1,35 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   BarChart3,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   CreditCard,
+  ExternalLink,
+  Eye,
   MapPin,
   MessageCircle,
   MessageSquare,
   Package,
+  Pencil,
   Plus,
   Send,
   ShoppingBag,
+  Star,
   Store,
   Trash2,
   Truck,
   Upload,
+  X,
 } from 'lucide-react';
 import { AIDOMART_ASSETS } from '../constants/assets';
-import { apiRequest, apiUpload } from '../lib/api';
+import { apiRequest } from '../lib/api';
+import {
+  chunkUploadBatches,
+  prepareDocumentFiles,
+  prepareImageFiles,
+} from '../lib/imageUpload';
 import { useAuth } from '../context/AuthContext';
 import type {
   MarketplaceCategory,
@@ -139,7 +151,8 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
     bankInstructions: '',
   });
 
-  // Product editor state
+  // Product editor & preview state
+  const productEditorRef = useRef<HTMLDivElement | null>(null);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [prodForm, setProdForm] = useState({
     title: '',
@@ -151,6 +164,15 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
     images: [] as string[],
     published: true,
   });
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+  const [viewingImageIdx, setViewingImageIdx] = useState(0);
+  const [showDraftPreview, setShowDraftPreview] = useState(false);
+  const [draftPreviewImageIdx, setDraftPreviewImageIdx] = useState(0);
+  const [imageLightbox, setImageLightbox] = useState<{
+    images: string[];
+    index: number;
+    context: 'product' | 'business';
+  } | null>(null);
 
   // Payment verification note & replies
   const [verifyNotes, setVerifyNotes] = useState<Record<number, string>>({});
@@ -242,6 +264,25 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
     }
   };
 
+  const startEditProduct = (p: Product) => {
+    setEditingProductId(p.id);
+    setProdForm({
+      title: p.title,
+      categoryId: String(p.categoryId),
+      price: String(p.price),
+      stock: String(p.stock),
+      description: p.description,
+      variationsText: p.variations.join(', '),
+      images: p.images,
+      published: p.published,
+    });
+    setViewingProduct(null);
+    setTab('products');
+    setTimeout(() => {
+      productEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  };
+
   useEffect(() => {
     const qTab = initialQuery?.get('tab');
     const qBuyerId = initialQuery?.get('buyerId');
@@ -252,6 +293,16 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
       setSelectedBuyerId(Number(qBuyerId));
     }
   }, [initialQuery?.toString()]);
+
+  useEffect(() => {
+    const editIdParam = Number(initialQuery?.get('editProduct'));
+    if (Number.isFinite(editIdParam) && editIdParam > 0 && products.length > 0) {
+      const target = products.find((p) => p.id === editIdParam);
+      if (target) {
+        startEditProduct(target);
+      }
+    }
+  }, [initialQuery?.get('editProduct'), products.length]);
 
   useEffect(() => {
     if (user?.role === 'seller') {
@@ -406,12 +457,25 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
     if (!files || files.length === 0) return;
     setDocFeedback(null);
     setUploadingDocs(true);
-    const fd = new FormData();
-    Array.from(files).forEach((f) => fd.append('documents', f));
     try {
-      const res = await apiUpload<{ message: string }>('/api/seller/application/documents', fd);
-      setDocFeedback({ ok: true, text: res.message });
-      notifyResult(res.message);
+      const prepared = await prepareDocumentFiles(files);
+      const batches = chunkUploadBatches(prepared);
+      let lastMessage = '';
+      for (const batch of batches) {
+        const res = await apiRequest<{ message: string }>('/api/seller/application/documents', {
+          method: 'POST',
+          body: {
+            files: batch.map(({ name, type, dataUrl }) => ({ name, type, dataUrl })),
+          },
+        });
+        lastMessage = res.message;
+      }
+      const msg =
+        prepared.length > 1
+          ? `${prepared.length} verification document(s) uploaded for administrator review.`
+          : lastMessage || 'Verification document uploaded.';
+      setDocFeedback({ ok: true, text: msg });
+      notifyResult(msg);
       await loadAll();
     } catch (err: any) {
       const msg = err?.message || 'Could not upload verification document.';
@@ -440,23 +504,37 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
       setUploadingGallery(true);
     }
 
-    const fd = new FormData();
-    fd.append('kind', kind);
-    Array.from(files).forEach((f) => fd.append('photos', f));
     try {
-      const res = await apiUpload<{
+      const prepared = await prepareImageFiles(kind === 'storefront' ? [files[0]] : files);
+      const batches = chunkUploadBatches(prepared);
+      let lastRes: {
         message: string;
         storefrontImage?: string;
         profile?: SellerProfile;
-      }>('/api/seller/profile/photos', fd);
+      } | null = null;
 
-      if (res.profile) {
-        syncFormFromProfile(res.profile);
-      } else if (kind === 'storefront' && res.storefrontImage && profile) {
-        setProfile({ ...profile, storefrontImage: res.storefrontImage });
+      for (const batch of batches) {
+        lastRes = await apiRequest<{
+          message: string;
+          storefrontImage?: string;
+          profile?: SellerProfile;
+        }>('/api/seller/profile/photos', {
+          method: 'POST',
+          body: {
+            kind,
+            files: batch.map(({ name, type, dataUrl }) => ({ name, type, dataUrl })),
+          },
+        });
       }
-      setPhotoFeedback({ ok: true, text: res.message || 'Photo updated.' });
-      notifyResult(res.message || 'Photo updated.');
+
+      if (lastRes?.profile) {
+        syncFormFromProfile(lastRes.profile);
+      } else if (kind === 'storefront' && lastRes?.storefrontImage && profile) {
+        setProfile({ ...profile, storefrontImage: lastRes.storefrontImage });
+      }
+      const msg = lastRes?.message || 'Photo updated.';
+      setPhotoFeedback({ ok: true, text: msg });
+      notifyResult(msg);
       await Promise.all([loadAll(), refreshUser()]);
       if (kind === 'storefront') {
         setAvatarPreviewUrl(null);
@@ -465,13 +543,37 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
       if (kind === 'storefront') {
         setAvatarPreviewUrl(null);
       }
-      const msg = err?.message || 'Could not upload image. Please select a JPG, PNG, or WebP photo under 10 MB.';
+      const msg = err?.message || 'Could not upload image. Please select a JPG, PNG, or WebP photo.';
       setPhotoFeedback({ ok: false, text: msg });
       notifyResult(msg, true);
     } finally {
       setUploadingAvatar(false);
       setUploadingGallery(false);
       e.target.value = '';
+    }
+  };
+
+  const handleSetBusinessPhotoAsAvatar = async (photoUrl: string) => {
+    setPhotoFeedback(null);
+    setUploadingAvatar(true);
+    try {
+      const res = await apiRequest<{ message: string; profile?: SellerProfile }>(
+        '/api/seller/profile/photos',
+        {
+          method: 'POST',
+          body: { kind: 'storefront', existingUrl: photoUrl },
+        }
+      );
+      if (res.profile) {
+        syncFormFromProfile(res.profile);
+      }
+      setPhotoFeedback({ ok: true, text: res.message || 'Storefront profile picture updated.' });
+      notifyResult(res.message || 'Storefront profile picture updated.');
+      await Promise.all([loadAll(), refreshUser()]);
+    } catch (err: any) {
+      setPhotoFeedback({ ok: false, text: err?.message || 'Could not set storefront picture.' });
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -526,18 +628,50 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setUploadingProductImages(true);
-    const fd = new FormData();
-    Array.from(files).forEach((f) => fd.append('images', f));
     try {
-      const res = await apiUpload<{ images: string[] }>('/api/seller/products/upload-images', fd);
-      setProdForm((p) => ({ ...p, images: [...p.images, ...res.images].slice(0, 5) }));
-      notifyResult('Product images uploaded.');
+      const remainingSlots = Math.max(0, 5 - prodForm.images.length);
+      if (remainingSlots === 0) {
+        notifyResult('Maximum of 5 product images reached. Remove one to upload another.', true);
+        return;
+      }
+      const selected = Array.from(files).slice(0, remainingSlots);
+      const prepared = await prepareImageFiles(selected);
+      const batches = chunkUploadBatches(prepared);
+      const uploadedUrls: string[] = [];
+
+      for (const batch of batches) {
+        const res = await apiRequest<{ images: string[] }>('/api/seller/products/upload-images', {
+          method: 'POST',
+          body: {
+            files: batch.map(({ name, type, dataUrl }) => ({ name, type, dataUrl })),
+          },
+        });
+        if (Array.isArray(res.images)) {
+          uploadedUrls.push(...res.images);
+        }
+      }
+
+      if (uploadedUrls.length > 0) {
+        setProdForm((p) => ({ ...p, images: [...p.images, ...uploadedUrls].slice(0, 5) }));
+        notifyResult(
+          `${uploadedUrls.length} product image${uploadedUrls.length === 1 ? '' : 's'} uploaded. Preview them or pick your cover photo below before publishing.`
+        );
+      }
     } catch (err: any) {
       notifyResult(err?.message || 'Could not upload product images.', true);
     } finally {
       setUploadingProductImages(false);
       e.target.value = '';
     }
+  };
+
+  const handleSetProductCover = (coverUrl: string) => {
+    setProdForm((p) => {
+      if (!p.images.includes(coverUrl)) return p;
+      const reordered = [coverUrl, ...p.images.filter((img) => img !== coverUrl)];
+      return { ...p, images: reordered };
+    });
+    notifyResult('Cover image updated. Save or Publish when ready.');
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
@@ -1196,24 +1330,55 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                     </label>
                   </div>
                   {profile?.businessPhotos && profile.businessPhotos.length > 0 ? (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {profile.businessPhotos.map((p) => (
-                        <div key={p} className="relative group">
-                          <SafeAssetImage
-                            src={p}
-                            alt="Business"
-                            className="aspect-square w-full rounded-lg object-cover border border-slate-200"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteBusinessPhoto(p)}
-                            aria-label="Remove business photo"
-                            className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600/90 hover:bg-red-700 text-white flex items-center justify-center shadow-sm"
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      {profile.businessPhotos.map((p, idx) => {
+                        const isCurrentAvatar = profile.storefrontImage === p;
+                        return (
+                          <div
+                            key={p}
+                            className="relative rounded-lg border border-slate-200 overflow-hidden bg-slate-50"
                           >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setImageLightbox({
+                                  images: profile.businessPhotos || [],
+                                  index: idx,
+                                  context: 'business',
+                                })
+                              }
+                              className="block w-full aspect-square overflow-hidden"
+                              title="Click to preview photo"
+                            >
+                              <SafeAssetImage
+                                src={p}
+                                alt="Business"
+                                className="w-full h-full object-cover hover:scale-105 transition-transform"
+                              />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteBusinessPhoto(p)}
+                              aria-label="Remove business photo"
+                              className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-red-600/90 hover:bg-red-700 text-white flex items-center justify-center shadow-sm"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSetBusinessPhotoAsAvatar(p)}
+                              disabled={isCurrentAvatar || uploadingAvatar}
+                              className={`w-full py-1 px-1.5 text-[10px] font-semibold transition-colors ${
+                                isCurrentAvatar
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-white hover:bg-orange-50 text-[#0B1F3A] border-t border-slate-200'
+                              }`}
+                            >
+                              {isCurrentAvatar ? 'Profile Picture' : 'Set as Profile Pic'}
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-xs text-slate-400">No business showcase photos uploaded yet.</p>
@@ -1290,7 +1455,10 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
       {/* PRODUCT MANAGEMENT */}
       {tab === 'products' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-5 bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4">
+          <div
+            ref={productEditorRef}
+            className="lg:col-span-5 bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4"
+          >
             <h2 className="font-display text-lg font-bold text-[#0B1F3A]">
               {editingProductId ? 'Edit Product' : 'Add New Product'}
             </h2>
@@ -1383,42 +1551,111 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Product Images</label>
-                  <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Product Images ({prodForm.images.length}/5)
+                    </label>
+                    {prodForm.images.length > 0 && (
+                      <span className="text-[11px] text-slate-500">
+                        Click a photo to preview or pick your Cover image
+                      </span>
+                    )}
+                  </div>
+                  <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer">
                     <Plus className="w-3.5 h-3.5" />
                     <span>{uploadingProductImages ? 'Uploading...' : 'Upload Images'}</span>
                     <input
                       type="file"
                       multiple
-                      accept=".jpg,.jpeg,.png,.webp,.gif"
-                      disabled={uploadingProductImages}
+                      accept="image/*,.jpg,.jpeg,.png,.webp,.gif"
+                      disabled={uploadingProductImages || prodForm.images.length >= 5}
                       onChange={handleProductImages}
                       className="hidden"
                     />
                   </label>
                   {prodForm.images.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {prodForm.images.map((img) => (
-                        <div key={img} className="relative w-14 h-14">
-                          <SafeAssetImage
-                            src={img}
-                            alt="Product"
-                            className="w-14 h-14 rounded object-cover border border-slate-200"
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setProdForm((p) => ({
-                                ...p,
-                                images: p.images.filter((x) => x !== img),
-                              }))
-                            }
-                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-white text-[10px]"
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-3">
+                      {prodForm.images.map((img, idx) => {
+                        const isCover = idx === 0;
+                        return (
+                          <div
+                            key={img}
+                            className={`relative rounded-xl overflow-hidden border-2 bg-slate-50 ${
+                              isCover ? 'border-[#F97316]' : 'border-slate-200'
+                            }`}
                           >
-                            &times;
-                          </button>
-                        </div>
-                      ))}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setImageLightbox({
+                                  images: prodForm.images,
+                                  index: idx,
+                                  context: 'product',
+                                })
+                              }
+                              className="block w-full aspect-square overflow-hidden text-left"
+                              title="Click to inspect full image"
+                            >
+                              <SafeAssetImage
+                                src={img}
+                                alt={`Product preview ${idx + 1}`}
+                                className="w-full h-full object-cover hover:scale-105 transition-transform"
+                              />
+                            </button>
+
+                            {isCover && (
+                              <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#F97316] text-white text-[10px] font-bold shadow-sm">
+                                <Star className="w-2.5 h-2.5 fill-current" />
+                                <span>Cover</span>
+                              </span>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setProdForm((p) => ({
+                                  ...p,
+                                  images: p.images.filter((x) => x !== img),
+                                }))
+                              }
+                              aria-label="Remove image"
+                              className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-red-600/90 hover:bg-red-700 text-white flex items-center justify-center shadow-sm"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+
+                            <div className="p-1.5 bg-white border-t border-slate-200 flex items-center justify-between gap-1">
+                              {isCover ? (
+                                <span className="text-[10px] font-bold text-[#F97316] truncate">
+                                  Main Cover Photo
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetProductCover(img)}
+                                  className="text-[10px] font-semibold text-[#0B1F3A] hover:text-[#F97316] truncate"
+                                >
+                                  Set as Cover
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setImageLightbox({
+                                    images: prodForm.images,
+                                    index: idx,
+                                    context: 'product',
+                                  })
+                                }
+                                aria-label="View full image"
+                                className="text-slate-500 hover:text-[#0B1F3A] shrink-0"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1431,7 +1668,7 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                   <span>Publish immediately in Shop</span>
                 </label>
 
-                <div className="flex gap-2 pt-2">
+                <div className="flex flex-wrap gap-2 pt-2">
                   <button
                     type="submit"
                     disabled={savingProduct}
@@ -1441,7 +1678,20 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                       ? 'Saving...'
                       : editingProductId
                       ? 'Update Product'
-                      : 'Save Product'}
+                      : prodForm.published
+                        ? 'Publish Product'
+                        : 'Save Draft'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftPreviewImageIdx(0);
+                      setShowDraftPreview(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-[#0B1F3A] text-[#0B1F3A] hover:bg-slate-50 text-xs font-semibold"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Preview Before Publishing</span>
                   </button>
                   {editingProductId && (
                     <button
@@ -1484,41 +1734,41 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                 {products.map((p) => (
                   <div
                     key={p.id}
-                    className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewingImageIdx(0);
+                        setViewingProduct(p);
+                      }}
+                      className="flex items-center gap-3 min-w-0 flex-1 text-left group"
+                    >
                       <SafeAssetImage
                         src={p.images[0] || ''}
                         alt={p.title}
-                        className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg object-cover border border-slate-200 shrink-0"
+                        className="w-14 h-14 rounded-lg object-cover border border-slate-200 shrink-0 group-hover:border-[#F97316] transition-colors"
                       />
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-semibold text-[#0B1F3A] truncate">{p.title}</h3>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm font-semibold text-[#0B1F3A] group-hover:text-[#F97316] transition-colors truncate">
+                          {p.title}
+                        </h3>
                         <p className="text-xs text-slate-500 tabular-nums">
                           {p.categoryName} · GHS {p.price.toFixed(2)} · Stock: {p.stock} ·{' '}
                           <span className={p.published ? 'text-emerald-700 font-semibold' : 'text-slate-400'}>
                             {p.published ? 'Published' : 'Unpublished'}
                           </span>
                         </p>
+                        <p className="text-[11px] text-[#F97316] font-medium mt-0.5">
+                          Click to preview images &amp; make changes
+                        </p>
                       </div>
-                    </div>
+                    </button>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditingProductId(p.id);
-                          setProdForm({
-                            title: p.title,
-                            categoryId: String(p.categoryId),
-                            price: String(p.price),
-                            stock: String(p.stock),
-                            description: p.description,
-                            variationsText: p.variations.join(', '),
-                            images: p.images,
-                            published: p.published,
-                          });
-                        }}
-                        className="px-2.5 py-1.5 rounded border border-slate-300 text-xs font-semibold text-slate-700"
+                        onClick={() => startEditProduct(p)}
+                        className="px-2.5 py-1.5 rounded border border-slate-300 hover:border-[#0B1F3A] text-xs font-semibold text-slate-700"
                       >
                         Edit
                       </button>
@@ -1555,6 +1805,9 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                             });
                             if (editingProductId === p.id) {
                               setEditingProductId(null);
+                            }
+                            if (viewingProduct?.id === p.id) {
+                              setViewingProduct(null);
                             }
                             notifyResult(res.message || `Deleted ${p.title}.`);
                             await loadAll();
@@ -2363,6 +2616,444 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                 );
               })
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Full-Size Uploaded Image Preview & Cover Selection Modal */}
+      {imageLightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-6"
+          onClick={() => setImageLightbox(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 bg-[#0B1F3A] text-white flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-bold truncate">
+                  Image Preview ({imageLightbox.index + 1} of {imageLightbox.images.length})
+                </p>
+                {imageLightbox.context === 'product' && imageLightbox.index === 0 && (
+                  <p className="text-[11px] text-orange-300 font-semibold">
+                    Current Main Cover Photo
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setImageLightbox(null)}
+                aria-label="Close preview"
+                className="p-1.5 rounded-lg hover:bg-white/10 text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="relative bg-slate-100 flex items-center justify-center h-[52vh] sm:h-[420px]">
+              <SafeAssetImage
+                src={imageLightbox.images[imageLightbox.index] || ''}
+                alt="Uploaded image preview"
+                className="max-h-full max-w-full object-contain"
+              />
+              {imageLightbox.images.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setImageLightbox((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              index: (prev.index - 1 + prev.images.length) % prev.images.length,
+                            }
+                          : null
+                      )
+                    }
+                    aria-label="Previous image"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-slate-950/65 text-white flex items-center justify-center hover:bg-slate-950"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setImageLightbox((prev) =>
+                        prev ? { ...prev, index: (prev.index + 1) % prev.images.length } : null
+                      )
+                    }
+                    aria-label="Next image"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-slate-950/65 text-white flex items-center justify-center hover:bg-slate-950"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="p-4 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              {imageLightbox.context === 'product' ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={imageLightbox.index === 0}
+                    onClick={() => {
+                      const chosenUrl = imageLightbox.images[imageLightbox.index];
+                      handleSetProductCover(chosenUrl);
+                      const reordered = [
+                        chosenUrl,
+                        ...imageLightbox.images.filter((u) => u !== chosenUrl),
+                      ];
+                      setImageLightbox({ images: reordered, index: 0, context: 'product' });
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] disabled:bg-emerald-600 text-white text-xs font-semibold"
+                  >
+                    <Star className="w-3.5 h-3.5 fill-current" />
+                    <span>
+                      {imageLightbox.index === 0 ? 'Selected as Cover Photo' : 'Set as Cover Photo'}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const targetUrl = imageLightbox.images[imageLightbox.index];
+                      const nextImgs = imageLightbox.images.filter((u) => u !== targetUrl);
+                      setProdForm((p) => ({ ...p, images: nextImgs }));
+                      if (nextImgs.length === 0) {
+                        setImageLightbox(null);
+                      } else {
+                        setImageLightbox({
+                          images: nextImgs,
+                          index: Math.min(imageLightbox.index, nextImgs.length - 1),
+                          context: 'product',
+                        });
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 text-xs font-semibold"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const chosenUrl = imageLightbox.images[imageLightbox.index];
+                    handleSetBusinessPhotoAsAvatar(chosenUrl);
+                    setImageLightbox(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold"
+                >
+                  <Store className="w-3.5 h-3.5" />
+                  <span>Set as Storefront Profile Picture</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setImageLightbox(null)}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pre-Publish Product Listing Preview Modal */}
+      {showDraftPreview && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
+          onClick={() => setShowDraftPreview(false)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-200 my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-3.5 bg-[#0B1F3A] text-white flex items-center justify-between gap-2">
+              <div>
+                <h3 className="font-display text-base font-bold">Pre-Publish Product Preview</h3>
+                <p className="text-[11px] text-slate-300">
+                  Review how buyers will see your Cover Image and product listing before publishing.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDraftPreview(false)}
+                aria-label="Close preview"
+                className="p-1.5 rounded-lg hover:bg-white/10 text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-start">
+                <div className="space-y-2.5">
+                  <div className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                    <SafeAssetImage
+                      src={prodForm.images[draftPreviewImageIdx] || ''}
+                      alt={prodForm.title || 'Product preview'}
+                      fallbackTitle={prodForm.title || 'Your Product'}
+                      fallbackSubtitle="Cover Photo Preview"
+                      className="w-full h-full object-cover"
+                    />
+                    {draftPreviewImageIdx === 0 && prodForm.images.length > 0 && (
+                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-[#F97316] text-white text-[10px] font-bold">
+                        Cover Photo
+                      </span>
+                    )}
+                  </div>
+
+                  {prodForm.images.length > 1 && (
+                    <div className="flex flex-wrap gap-2">
+                      {prodForm.images.map((img, i) => (
+                        <div key={img} className="space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => setDraftPreviewImageIdx(i)}
+                            className={`w-14 h-14 rounded-lg overflow-hidden border-2 block ${
+                              i === draftPreviewImageIdx ? 'border-[#F97316]' : 'border-slate-200'
+                            }`}
+                          >
+                            <SafeAssetImage
+                              src={img}
+                              alt={`Thumb ${i + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </button>
+                          {i !== 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleSetProductCover(img);
+                                setDraftPreviewImageIdx(0);
+                              }}
+                              className="block w-full text-[10px] font-semibold text-[#F97316] hover:underline"
+                            >
+                              Make Cover
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="text-xs text-slate-500">
+                    {categories.find((c) => String(c.id) === prodForm.categoryId)?.name || 'Category'} ·{' '}
+                    {prodForm.stock ? `${prodForm.stock} in stock` : 'Stock not set'}
+                  </div>
+                  <h4 className="font-display text-lg font-bold text-[#0B1F3A] break-words">
+                    {prodForm.title || 'Untitled Product'}
+                  </h4>
+                  <p className="text-xl font-mono font-bold text-[#0B1F3A] tabular-nums">
+                    GHS {Number(prodForm.price || 0).toFixed(2)}
+                  </p>
+                  <p className="text-xs text-slate-600 whitespace-pre-line leading-relaxed">
+                    {prodForm.description || 'No description entered yet.'}
+                  </p>
+                  {prodForm.variationsText.trim() && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {prodForm.variationsText
+                        .split(',')
+                        .map((v) => v.trim())
+                        .filter(Boolean)
+                        .map((v) => (
+                          <span
+                            key={v}
+                            className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] font-medium text-slate-700"
+                          >
+                            {v}
+                          </span>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDraftPreview(false)}
+                className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Back to Edit
+              </button>
+              <button
+                type="button"
+                disabled={savingProduct}
+                onClick={async () => {
+                  setShowDraftPreview(false);
+                  await handleSaveProduct({ preventDefault: () => {} } as React.FormEvent);
+                }}
+                className="px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold"
+              >
+                {editingProductId
+                  ? 'Save Changes Now'
+                  : prodForm.published
+                    ? 'Publish Now'
+                    : 'Save Draft Now'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Click-to-Inspect & Manage Published / Draft Product Modal */}
+      {viewingProduct && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
+          onClick={() => setViewingProduct(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-200 my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-3.5 bg-[#0B1F3A] text-white flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="font-display text-base font-bold truncate">{viewingProduct.title}</h3>
+                <p className="text-[11px] text-slate-300">
+                  {viewingProduct.published ? 'Published in Shop' : 'Unpublished Draft'} ·{' '}
+                  {viewingProduct.categoryName}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingProduct(null)}
+                aria-label="Close product details"
+                className="p-1.5 rounded-lg hover:bg-white/10 text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-start">
+                <div className="space-y-2.5">
+                  <div className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                    <SafeAssetImage
+                      src={viewingProduct.images[viewingImageIdx] || ''}
+                      alt={viewingProduct.title}
+                      fallbackTitle={viewingProduct.title}
+                      fallbackSubtitle={viewingProduct.categoryName}
+                      className="w-full h-full object-cover"
+                    />
+                    {viewingImageIdx === 0 && viewingProduct.images.length > 0 && (
+                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-[#F97316] text-white text-[10px] font-bold">
+                        Cover Photo
+                      </span>
+                    )}
+                  </div>
+
+                  {viewingProduct.images.length > 1 && (
+                    <div className="flex flex-wrap gap-2">
+                      {viewingProduct.images.map((img, i) => (
+                        <button
+                          key={img}
+                          type="button"
+                          onClick={() => setViewingImageIdx(i)}
+                          className={`w-12 h-12 rounded-lg overflow-hidden border-2 ${
+                            i === viewingImageIdx ? 'border-[#F97316]' : 'border-slate-200'
+                          }`}
+                        >
+                          <SafeAssetImage
+                            src={img}
+                            alt={`${viewingProduct.title} ${i + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xl font-mono font-bold text-[#0B1F3A] tabular-nums">
+                    GHS {viewingProduct.price.toFixed(2)}
+                  </p>
+                  <p className="text-xs text-slate-600">
+                    <strong>Stock:</strong> {viewingProduct.stock} available
+                  </p>
+                  <p className="text-xs text-slate-700 whitespace-pre-line leading-relaxed">
+                    {viewingProduct.description}
+                  </p>
+                  {viewingProduct.variations.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {viewingProduct.variations.map((v) => (
+                        <span
+                          key={v}
+                          className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] font-medium text-slate-700"
+                        >
+                          {v}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => startEditProduct(viewingProduct)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>Edit Product / Change Cover</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={busyProductId === viewingProduct.id}
+                  onClick={async () => {
+                    const target = viewingProduct;
+                    setBusyProductId(target.id);
+                    try {
+                      const nextPublished = !target.published;
+                      const res = await apiRequest<{ message: string }>(
+                        `/api/seller/products/${target.id}`,
+                        {
+                          method: 'PUT',
+                          body: { published: nextPublished },
+                        }
+                      );
+                      notifyResult(res.message || `Updated ${target.title}.`);
+                      setViewingProduct({ ...target, published: nextPublished });
+                      await loadAll();
+                    } catch (err: any) {
+                      notifyResult(err?.message || 'Could not update product visibility.', true);
+                    } finally {
+                      setBusyProductId(null);
+                    }
+                  }}
+                  className="px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700"
+                >
+                  {viewingProduct.published ? 'Unpublish' : 'Publish'}
+                </button>
+              </div>
+
+              {viewingProduct.published && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = viewingProduct.id;
+                    setViewingProduct(null);
+                    onNavigate(`/product/${id}`);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[#0B1F3A] text-[#0B1F3A] hover:bg-[#0B1F3A] hover:text-white text-xs font-semibold transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>View Live in Shop</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
