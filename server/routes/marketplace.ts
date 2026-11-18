@@ -16,6 +16,8 @@ function formatProductRow(row: Record<string, any>) {
     description: row.description,
     price: Number(row.price),
     stock: Number(row.stock),
+    sizes: JSON.parse(row.sizes_json || '[]'),
+    colors: JSON.parse(row.colors_json || '[]'),
     variations: JSON.parse(row.variations_json || '[]'),
     images: JSON.parse(row.images_json || '[]'),
     published: Boolean(row.published),

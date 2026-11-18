@@ -189,6 +189,8 @@ export function initDatabase() {
       price REAL NOT NULL CHECK (price >= 0),
       stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
       variations_json TEXT NOT NULL DEFAULT '[]',
+      sizes_json TEXT NOT NULL DEFAULT '[]',
+      colors_json TEXT NOT NULL DEFAULT '[]',
       images_json TEXT NOT NULL DEFAULT '[]',
       published INTEGER NOT NULL DEFAULT 1,
       moderated_reason TEXT,
@@ -414,6 +416,19 @@ export function initDatabase() {
   for (const { col, def } of missingOrderCols) {
     if (!orderCols.includes(col)) {
       db.exec(`ALTER TABLE orders ADD COLUMN ${col} ${def};`);
+    }
+  }
+
+  const productCols = (db.prepare(`PRAGMA table_info(products)`).all() as Array<{ name: string }>).map(
+    (c) => c.name
+  );
+  const missingProductCols: Array<{ col: string; def: string }> = [
+    { col: 'sizes_json', def: `TEXT NOT NULL DEFAULT '[]'` },
+    { col: 'colors_json', def: `TEXT NOT NULL DEFAULT '[]'` },
+  ];
+  for (const { col, def } of missingProductCols) {
+    if (!productCols.includes(col)) {
+      db.exec(`ALTER TABLE products ADD COLUMN ${col} ${def};`);
     }
   }
 

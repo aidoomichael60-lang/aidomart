@@ -160,6 +160,8 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
     price: '',
     stock: '',
     description: '',
+    sizesText: '',
+    colorsText: '',
     variationsText: '',
     images: [] as string[],
     published: true,
@@ -264,6 +266,20 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
     }
   };
 
+  const togglePresetOption = (field: 'sizesText' | 'colorsText', option: string) => {
+    setProdForm((prev) => {
+      const list = prev[field]
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const exists = list.some((x) => x.toLowerCase() === option.toLowerCase());
+      const nextList = exists
+        ? list.filter((x) => x.toLowerCase() !== option.toLowerCase())
+        : [...list, option];
+      return { ...prev, [field]: nextList.join(', ') };
+    });
+  };
+
   const startEditProduct = (p: Product) => {
     setEditingProductId(p.id);
     setProdForm({
@@ -272,6 +288,8 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
       price: String(p.price),
       stock: String(p.stock),
       description: p.description,
+      sizesText: (p.sizes || []).join(', '),
+      colorsText: (p.colors || []).join(', '),
       variationsText: p.variations.join(', '),
       images: p.images,
       published: p.published,
@@ -676,16 +694,22 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    const variations = prodForm.variationsText
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const parseCommaList = (raw: string) =>
+      raw
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    const sizes = parseCommaList(prodForm.sizesText);
+    const colors = parseCommaList(prodForm.colorsText);
+    const variations = parseCommaList(prodForm.variationsText);
     const payload = {
       title: prodForm.title,
       categoryId: Number(prodForm.categoryId),
       price: Number(prodForm.price),
       stock: Number(prodForm.stock),
       description: prodForm.description,
+      sizes,
+      colors,
       variations,
       images: prodForm.images,
       published: prodForm.published,
@@ -713,6 +737,8 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
         price: '',
         stock: '',
         description: '',
+        sizesText: '',
+        colorsText: '',
         variationsText: '',
         images: [],
         published: true,
@@ -1515,30 +1541,121 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Stock Quantity *</label>
-                    <input
-                      type="number"
-                      min="0"
-                      required
-                      value={prodForm.stock}
-                      onChange={(e) => setProdForm({ ...prodForm, stock: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Variations (comma-separated)
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Stock Quantity *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={prodForm.stock}
+                    onChange={(e) => setProdForm({ ...prodForm, stock: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
+                  />
+                </div>
+
+                {/* Separate Sizes Field */}
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="block text-xs font-semibold text-[#0B1F3A]">
+                      Product Sizes (separate from colors)
                     </label>
-                    <input
-                      type="text"
-                      value={prodForm.variationsText}
-                      onChange={(e) => setProdForm({ ...prodForm, variationsText: e.target.value })}
-                      placeholder="S, M, L or Black, Navy"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                    />
+                    <span className="text-[11px] text-slate-500">Tap presets or type custom</span>
                   </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['XS', 'S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42', '43', '44'].map((sz) => {
+                      const active = prodForm.sizesText
+                        .split(',')
+                        .map((x) => x.trim().toLowerCase())
+                        .includes(sz.toLowerCase());
+                      return (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => togglePresetOption('sizesText', sz)}
+                          className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition-colors ${
+                            active
+                              ? 'bg-[#0B1F3A] text-white border-[#0B1F3A]'
+                              : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          {sz}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <input
+                    type="text"
+                    value={prodForm.sizesText}
+                    onChange={(e) => setProdForm({ ...prodForm, sizesText: e.target.value })}
+                    placeholder="e.g. S, M, L, XL or 40, 41, 42"
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+
+                {/* Separate Colors Field */}
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="block text-xs font-semibold text-[#0B1F3A]">
+                      Product Colors (separate from sizes)
+                    </label>
+                    <span className="text-[11px] text-slate-500">Tap presets or type custom</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { name: 'Black', dot: 'bg-slate-900' },
+                      { name: 'White', dot: 'bg-white border border-slate-300' },
+                      { name: 'Navy', dot: 'bg-blue-950' },
+                      { name: 'Blue', dot: 'bg-blue-600' },
+                      { name: 'Red', dot: 'bg-red-600' },
+                      { name: 'Green', dot: 'bg-emerald-600' },
+                      { name: 'Brown', dot: 'bg-amber-800' },
+                      { name: 'Beige', dot: 'bg-amber-100 border border-amber-300' },
+                      { name: 'Grey', dot: 'bg-slate-400' },
+                      { name: 'Gold', dot: 'bg-yellow-500' },
+                      { name: 'Pink', dot: 'bg-pink-500' },
+                    ].map((clr) => {
+                      const active = prodForm.colorsText
+                        .split(',')
+                        .map((x) => x.trim().toLowerCase())
+                        .includes(clr.name.toLowerCase());
+                      return (
+                        <button
+                          key={clr.name}
+                          type="button"
+                          onClick={() => togglePresetOption('colorsText', clr.name)}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border transition-colors ${
+                            active
+                              ? 'bg-[#0B1F3A] text-white border-[#0B1F3A]'
+                              : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${clr.dot}`} />
+                          <span>{clr.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <input
+                    type="text"
+                    value={prodForm.colorsText}
+                    onChange={(e) => setProdForm({ ...prodForm, colorsText: e.target.value })}
+                    placeholder="e.g. Black, White, Navy Blue"
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+
+                {/* Optional Other Variations (e.g. Capacity, Material, Style) */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Other Options / Variations (optional, e.g. Storage or Edition)
+                  </label>
+                  <input
+                    type="text"
+                    value={prodForm.variationsText}
+                    onChange={(e) => setProdForm({ ...prodForm, variationsText: e.target.value })}
+                    placeholder="e.g. 128GB, 256GB or Cotton, Silk (leave blank if only Sizes/Colors)"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Description *</label>
@@ -1704,6 +1821,8 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                           price: '',
                           stock: '',
                           description: '',
+                          sizesText: '',
+                          colorsText: '',
                           variationsText: '',
                           images: [],
                           published: true,
@@ -2857,20 +2976,61 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                   <p className="text-xs text-slate-600 whitespace-pre-line leading-relaxed">
                     {prodForm.description || 'No description entered yet.'}
                   </p>
+                  {prodForm.sizesText.trim() && (
+                    <div className="space-y-1 pt-1">
+                      <span className="block text-[11px] font-semibold text-slate-700">Available Sizes:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {prodForm.sizesText
+                          .split(',')
+                          .map((v) => v.trim())
+                          .filter(Boolean)
+                          .map((v) => (
+                            <span
+                              key={v}
+                              className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] font-semibold text-[#0B1F3A]"
+                            >
+                              {v}
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                  {prodForm.colorsText.trim() && (
+                    <div className="space-y-1 pt-1">
+                      <span className="block text-[11px] font-semibold text-slate-700">Available Colors:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {prodForm.colorsText
+                          .split(',')
+                          .map((v) => v.trim())
+                          .filter(Boolean)
+                          .map((v) => (
+                            <span
+                              key={v}
+                              className="px-2 py-0.5 rounded bg-orange-50 border border-orange-200 text-[11px] font-semibold text-slate-800"
+                            >
+                              {v}
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                   {prodForm.variationsText.trim() && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {prodForm.variationsText
-                        .split(',')
-                        .map((v) => v.trim())
-                        .filter(Boolean)
-                        .map((v) => (
-                          <span
-                            key={v}
-                            className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] font-medium text-slate-700"
-                          >
-                            {v}
-                          </span>
-                        ))}
+                    <div className="space-y-1 pt-1">
+                      <span className="block text-[11px] font-semibold text-slate-700">Other Options:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {prodForm.variationsText
+                          .split(',')
+                          .map((v) => v.trim())
+                          .filter(Boolean)
+                          .map((v) => (
+                            <span
+                              key={v}
+                              className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] font-medium text-slate-700"
+                            >
+                              {v}
+                            </span>
+                          ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2983,16 +3143,49 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                   <p className="text-xs text-slate-700 whitespace-pre-line leading-relaxed">
                     {viewingProduct.description}
                   </p>
+                  {viewingProduct.sizes && viewingProduct.sizes.length > 0 && (
+                    <div className="space-y-1">
+                      <span className="block text-[11px] font-semibold text-slate-700">Sizes:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {viewingProduct.sizes.map((s) => (
+                          <span
+                            key={s}
+                            className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] font-semibold text-[#0B1F3A]"
+                          >
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {viewingProduct.colors && viewingProduct.colors.length > 0 && (
+                    <div className="space-y-1">
+                      <span className="block text-[11px] font-semibold text-slate-700">Colors:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {viewingProduct.colors.map((c) => (
+                          <span
+                            key={c}
+                            className="px-2 py-0.5 rounded bg-orange-50 border border-orange-200 text-[11px] font-semibold text-slate-800"
+                          >
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {viewingProduct.variations.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {viewingProduct.variations.map((v) => (
-                        <span
-                          key={v}
-                          className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] font-medium text-slate-700"
-                        >
-                          {v}
-                        </span>
-                      ))}
+                    <div className="space-y-1">
+                      <span className="block text-[11px] font-semibold text-slate-700">Other Options:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {viewingProduct.variations.map((v) => (
+                          <span
+                            key={v}
+                            className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] font-medium text-slate-700"
+                          >
+                            {v}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

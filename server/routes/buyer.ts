@@ -194,7 +194,7 @@ buyerRouter.post('/orders/checkout', requireAuth, requireRole('buyer'), async (r
       for (const entry of rawItems) {
         const productId = Number(entry?.productId);
         const quantity = Math.floor(Number(entry?.quantity));
-        const selectedVariation = sanitizeText(entry?.selectedVariation, 80);
+        const selectedVariation = sanitizeText(entry?.selectedVariation, 160);
 
         if (!Number.isFinite(productId) || !Number.isFinite(quantity) || quantity <= 0) {
           throw new Error('Invalid product quantity in cart.');

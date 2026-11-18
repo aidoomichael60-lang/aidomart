@@ -683,6 +683,8 @@ sellerRouter.get('/products', (req: Request, res: Response) => {
       description: r.description,
       price: Number(r.price),
       stock: Number(r.stock),
+      sizes: JSON.parse(r.sizes_json || '[]'),
+      colors: JSON.parse(r.colors_json || '[]'),
       variations: JSON.parse(r.variations_json || '[]'),
       images: JSON.parse(r.images_json || '[]'),
       published: Boolean(r.published),
@@ -734,6 +736,12 @@ sellerRouter.post('/products', (req: Request, res: Response) => {
   const price = Number(req.body?.price);
   const stock = Math.floor(Number(req.body?.stock));
   const published = req.body?.published === false ? 0 : 1;
+  const sizes = Array.isArray(req.body?.sizes)
+    ? req.body.sizes.map((v: unknown) => sanitizeText(v, 40)).filter(Boolean)
+    : [];
+  const colors = Array.isArray(req.body?.colors)
+    ? req.body.colors.map((v: unknown) => sanitizeText(v, 40)).filter(Boolean)
+    : [];
   const variations = Array.isArray(req.body?.variations)
     ? req.body.variations.map((v: unknown) => sanitizeText(v, 60)).filter(Boolean)
     : [];
@@ -763,8 +771,8 @@ sellerRouter.post('/products', (req: Request, res: Response) => {
 
   const result = db
     .prepare(
-      `INSERT INTO products (seller_id, category_id, title, description, price, stock, variations_json, images_json, published)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO products (seller_id, category_id, title, description, price, stock, sizes_json, colors_json, variations_json, images_json, published)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       sellerId,
@@ -773,6 +781,8 @@ sellerRouter.post('/products', (req: Request, res: Response) => {
       description,
       Number(price.toFixed(2)),
       stock,
+      JSON.stringify(sizes),
+      JSON.stringify(colors),
       JSON.stringify(variations),
       JSON.stringify(images),
       published
@@ -803,6 +813,12 @@ sellerRouter.put('/products/:id', (req: Request, res: Response) => {
   const stock = req.body?.stock !== undefined ? Math.floor(Number(req.body.stock)) : Number(existing.stock);
   const published =
     typeof req.body?.published === 'boolean' ? (req.body.published ? 1 : 0) : existing.published;
+  const sizes = Array.isArray(req.body?.sizes)
+    ? req.body.sizes.map((v: unknown) => sanitizeText(v, 40)).filter(Boolean)
+    : JSON.parse(existing.sizes_json || '[]');
+  const colors = Array.isArray(req.body?.colors)
+    ? req.body.colors.map((v: unknown) => sanitizeText(v, 40)).filter(Boolean)
+    : JSON.parse(existing.colors_json || '[]');
   const variations = Array.isArray(req.body?.variations)
     ? req.body.variations.map((v: unknown) => sanitizeText(v, 60)).filter(Boolean)
     : JSON.parse(existing.variations_json || '[]');
@@ -819,7 +835,7 @@ sellerRouter.put('/products/:id', (req: Request, res: Response) => {
   db.prepare(
     `UPDATE products
      SET category_id = ?, title = ?, description = ?, price = ?, stock = ?,
-         variations_json = ?, images_json = ?, published = ?, updated_at = datetime('now')
+         sizes_json = ?, colors_json = ?, variations_json = ?, images_json = ?, published = ?, updated_at = datetime('now')
      WHERE id = ? AND seller_id = ?`
   ).run(
     categoryId,
@@ -827,6 +843,8 @@ sellerRouter.put('/products/:id', (req: Request, res: Response) => {
     description,
     Number(price.toFixed(2)),
     stock,
+    JSON.stringify(sizes),
+    JSON.stringify(colors),
     JSON.stringify(variations),
     JSON.stringify(images),
     published,

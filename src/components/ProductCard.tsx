@@ -48,6 +48,22 @@ export function ProductCard({ product, onNavigate }: ProductCardProps) {
           </button>
 
           <p className="hidden sm:line-clamp-2 mt-1 text-xs text-slate-600">{product.description}</p>
+          {((product.sizes && product.sizes.length > 0) || (product.colors && product.colors.length > 0)) && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] font-medium text-slate-600">
+              {product.sizes && product.sizes.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">
+                  Sizes: {product.sizes.slice(0, 3).join(', ')}
+                  {product.sizes.length > 3 ? ` +${product.sizes.length - 3}` : ''}
+                </span>
+              )}
+              {product.colors && product.colors.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">
+                  Colors: {product.colors.slice(0, 3).join(', ')}
+                  {product.colors.length > 3 ? ` +${product.colors.length - 3}` : ''}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Mandatory Seller Profile Link & Identification */}
@@ -86,7 +102,16 @@ export function ProductCard({ product, onNavigate }: ProductCardProps) {
           <button
             type="button"
             disabled={product.stock <= 0}
-            onClick={() => addToCart(product, 1, product.variations[0] || '')}
+            onClick={() => {
+              const defaultVariant = [
+                product.sizes?.[0] ? `Size: ${product.sizes[0]}` : '',
+                product.colors?.[0] ? `Color: ${product.colors[0]}` : '',
+                product.variations[0] || '',
+              ]
+                .filter(Boolean)
+                .join(' · ');
+              addToCart(product, 1, defaultVariant);
+            }}
             className="inline-flex items-center justify-center gap-1 px-2.5 sm:px-3 min-h-[38px] sm:min-h-[40px] rounded-lg bg-[#0B1F3A] hover:bg-[#F97316] disabled:bg-slate-200 disabled:text-slate-400 text-white text-[11px] sm:text-xs font-semibold transition-colors whitespace-nowrap shrink-0"
           >
             <ShoppingCart className="w-3.5 h-3.5" />

@@ -22,10 +22,32 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
   const [eligibleOrderId, setEligibleOrderId] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [selectedSize, setSelectedSize] = useState('');
+  const [selectedColor, setSelectedColor] = useState('');
   const [selectedVariation, setSelectedVariation] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const colorSwatchClass = (colorName: string) => {
+    const c = colorName.trim().toLowerCase();
+    if (c.includes('black')) return 'bg-slate-900 border-slate-900';
+    if (c.includes('white') || c.includes('ivory')) return 'bg-white border-slate-300';
+    if (c.includes('navy')) return 'bg-blue-950 border-blue-950';
+    if (c.includes('blue')) return 'bg-blue-600 border-blue-600';
+    if (c.includes('red')) return 'bg-red-600 border-red-600';
+    if (c.includes('maroon') || c.includes('burgundy') || c.includes('wine')) return 'bg-rose-900 border-rose-900';
+    if (c.includes('green') || c.includes('olive')) return 'bg-emerald-600 border-emerald-600';
+    if (c.includes('yellow')) return 'bg-amber-400 border-amber-500';
+    if (c.includes('gold')) return 'bg-yellow-500 border-yellow-600';
+    if (c.includes('orange')) return 'bg-orange-500 border-orange-500';
+    if (c.includes('pink') || c.includes('rose')) return 'bg-pink-500 border-pink-500';
+    if (c.includes('purple') || c.includes('violet')) return 'bg-purple-600 border-purple-600';
+    if (c.includes('brown') || c.includes('tan') || c.includes('coffee')) return 'bg-amber-800 border-amber-800';
+    if (c.includes('beige') || c.includes('cream') || c.includes('khaki')) return 'bg-amber-100 border-amber-300';
+    if (c.includes('grey') || c.includes('gray') || c.includes('silver')) return 'bg-slate-400 border-slate-500';
+    return '';
+  };
 
   // Review submission state (for eligible verified purchases)
   const [rating, setRating] = useState(5);
@@ -52,6 +74,10 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
       setProduct(data.product);
       setReviews(data.reviews || []);
       setEligibleOrderId(data.eligibleOrderId);
+      const sizes = data.product.sizes || [];
+      const colors = data.product.colors || [];
+      setSelectedSize((curr) => (curr && sizes.includes(curr) ? curr : sizes[0] || ''));
+      setSelectedColor((curr) => (curr && colors.includes(curr) ? curr : colors[0] || ''));
       setSelectedVariation((curr) =>
         curr && data.product.variations.includes(curr)
           ? curr
@@ -224,10 +250,62 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
             {product.description}
           </p>
 
+          {product.sizes && product.sizes.length > 0 && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-2">
+                Select Size{selectedSize ? `: ${selectedSize}` : ''}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {product.sizes.map((sz) => (
+                  <button
+                    key={sz}
+                    type="button"
+                    onClick={() => setSelectedSize(sz)}
+                    className={`min-w-[40px] px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                      selectedSize === sz
+                        ? 'bg-[#0B1F3A] text-white border-[#0B1F3A]'
+                        : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
+                    }`}
+                  >
+                    {sz}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {product.colors && product.colors.length > 0 && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-2">
+                Select Color{selectedColor ? `: ${selectedColor}` : ''}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {product.colors.map((clr) => {
+                  const swatch = colorSwatchClass(clr);
+                  return (
+                    <button
+                      key={clr}
+                      type="button"
+                      onClick={() => setSelectedColor(clr)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                        selectedColor === clr
+                          ? 'bg-[#0B1F3A] text-white border-[#0B1F3A]'
+                          : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
+                      }`}
+                    >
+                      {swatch && <span className={`w-3 h-3 rounded-full border shrink-0 ${swatch}`} />}
+                      <span>{clr}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {product.variations.length > 0 && (
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-2">
-                Select Option / Variation
+                Select Option / Edition{selectedVariation ? `: ${selectedVariation}` : ''}
               </label>
               <div className="flex flex-wrap gap-2">
                 {product.variations.map((v) => (
@@ -264,7 +342,16 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
             <button
               type="button"
               disabled={product.stock <= 0}
-              onClick={() => addToCart(product, quantity, selectedVariation)}
+              onClick={() => {
+                const combinedSelection = [
+                  selectedSize ? `Size: ${selectedSize}` : '',
+                  selectedColor ? `Color: ${selectedColor}` : '',
+                  selectedVariation || '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ');
+                addToCart(product, quantity, combinedSelection);
+              }}
               className="flex-1 min-w-0 min-h-[44px] py-3 px-4 sm:px-5 rounded-lg bg-[#F97316] hover:bg-[#EA580C] disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors"
             >
               <ShoppingCart className="w-4 h-4 shrink-0" />

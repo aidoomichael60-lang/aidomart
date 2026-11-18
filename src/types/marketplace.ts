@@ -109,6 +109,8 @@ export interface Product {
   description: string;
   price: number;
   stock: number;
+  sizes?: string[];
+  colors?: string[];
   variations: string[];
   images: string[];
   published: boolean;
