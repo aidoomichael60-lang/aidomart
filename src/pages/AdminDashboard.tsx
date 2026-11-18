@@ -85,6 +85,9 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
 
   const [loadingData, setLoadingData] = useState(false);
   const [savingSellerId, setSavingSellerId] = useState<number | null>(null);
+  const [sellerFeedback, setSellerFeedback] = useState<
+    Record<number, { ok: boolean; text: string }>
+  >({});
   const [statusBanner, setStatusBanner] = useState('');
   const [errorBanner, setErrorBanner] = useState('');
 
@@ -120,10 +123,10 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
     setErrorBanner(msg);
   };
 
-  const loadAdminData = async () => {
+  const loadAdminData = async (options: { preserveBanner?: boolean } = {}) => {
     setLoadingData(true);
     try {
-      const [ov, sel, usr, prd, cats, prm, ord, cmp] = await Promise.all([
+      const results = await Promise.allSettled([
         apiRequest('/api/admin/overview'),
         apiRequest<{ sellers: any[] }>('/api/admin/sellers'),
         apiRequest<{ users: any[] }>('/api/admin/users'),
@@ -135,29 +138,44 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
         ),
         apiRequest<{ complaints: any[] }>('/api/admin/complaints'),
       ]);
-      setOverview(ov);
-      const sellerRows = sel.sellers || [];
-      setSellers(sellerRows);
-      const initForms: typeof reviewForms = {};
-      for (const s of sellerRows) {
-        initForms[s.id] = {
-          applicationStatus: s.applicationStatus || 'Pending Review',
-          verifiedBadge: Boolean(s.verifiedBadge),
-          physicalInspectionConducted: Boolean(s.physicalInspectionConducted),
-          physicalInspectionDate: s.physicalInspectionDate || new Date().toISOString().slice(0, 10),
-          physicalInspectionNotes: s.physicalInspectionNotes || '',
-          adminFeedback: s.adminFeedback || '',
-        };
+
+      const [ovRes, selRes, usrRes, prdRes, catsRes, prmRes, ordRes, cmpRes] = results;
+
+      if (ovRes.status === 'fulfilled') setOverview(ovRes.value);
+      if (selRes.status === 'fulfilled') {
+        const sellerRows = selRes.value.sellers || [];
+        setSellers(sellerRows);
+        const initForms: typeof reviewForms = {};
+        for (const s of sellerRows) {
+          initForms[s.id] = {
+            applicationStatus: s.applicationStatus || 'Pending Review',
+            verifiedBadge: Boolean(s.verifiedBadge),
+            physicalInspectionConducted: Boolean(s.physicalInspectionConducted),
+            physicalInspectionDate: s.physicalInspectionDate || new Date().toISOString().slice(0, 10),
+            physicalInspectionNotes: s.physicalInspectionNotes || '',
+            adminFeedback: s.adminFeedback || '',
+          };
+        }
+        setReviewForms(initForms);
       }
-      setReviewForms(initForms);
-      setUsersList(usr.users || []);
-      setProductsList(prd.products || []);
-      setCategoriesList(cats.categories || []);
-      setPromotionsList(prm.promotions || []);
-      setOrdersList(ord.orders || []);
-      setComplaintsList(cmp.complaints || []);
+      if (usrRes.status === 'fulfilled') setUsersList(usrRes.value.users || []);
+      if (prdRes.status === 'fulfilled') setProductsList(prdRes.value.products || []);
+      if (catsRes.status === 'fulfilled') setCategoriesList(catsRes.value.categories || []);
+      if (prmRes.status === 'fulfilled') setPromotionsList(prmRes.value.promotions || []);
+      if (ordRes.status === 'fulfilled') setOrdersList(ordRes.value.orders || []);
+      if (cmpRes.status === 'fulfilled') setComplaintsList(cmpRes.value.complaints || []);
+
+      const firstRejected = results.find(
+        (r): r is PromiseRejectedResult => r.status === 'rejected'
+      );
+      if (firstRejected && !options.preserveBanner) {
+        const reason = firstRejected.reason as any;
+        showError(reason?.message || 'Some admin records failed to load. Tap Refresh Data to retry.');
+      }
     } catch (err: any) {
-      showError(err?.message || 'Unable to load admin records. Tap Refresh to try again.');
+      if (!options.preserveBanner) {
+        showError(err?.message || 'Unable to load admin records. Tap Refresh to try again.');
+      }
     } finally {
       setLoadingData(false);
     }
@@ -190,6 +208,11 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
     setSavingSellerId(seller.id);
     setErrorBanner('');
     setStatusBanner('');
+    setSellerFeedback((prev) => {
+      const next = { ...prev };
+      delete next[seller.id];
+      return next;
+    });
 
     try {
       const res = await apiRequest<{
@@ -201,19 +224,47 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
         method: 'POST',
         body: payload,
       });
+      const finalStatus = res.applicationStatus || payload.applicationStatus;
+      const finalBadge = Boolean(
+        res.verifiedBadge !== undefined ? res.verifiedBadge : payload.verifiedBadge && finalStatus === 'Approved'
+      );
       const emailNote = res.emailDelivered
         ? ' Seller notified by email & dashboard.'
         : ' Seller notified in dashboard.';
-      showSuccess(
-        `Updated ${seller.businessName} to ${res.applicationStatus || payload.applicationStatus}${
-          payload.verifiedBadge && (res.applicationStatus || payload.applicationStatus) === 'Approved'
-            ? ' (Verified Badge Granted)'
-            : ''
-        }.${emailNote}`
+      const successText = `Updated ${seller.businessName} to ${finalStatus}${
+        finalBadge ? ' (Verified Badge Granted)' : ''
+      }.${emailNote}`;
+
+      setSellers((prev) =>
+        prev.map((item) =>
+          item.id === seller.id
+            ? {
+                ...item,
+                applicationStatus: finalStatus,
+                verifiedBadge: finalBadge,
+                physicalInspectionConducted: payload.physicalInspectionConducted,
+                physicalInspectionDate: payload.physicalInspectionDate,
+                physicalInspectionNotes: payload.physicalInspectionNotes,
+                adminFeedback: payload.adminFeedback,
+              }
+            : item
+        )
       );
-      await loadAdminData();
+      setReviewForms((prev) => ({
+        ...prev,
+        [seller.id]: {
+          ...payload,
+          applicationStatus: finalStatus,
+          verifiedBadge: finalBadge,
+        },
+      }));
+      setSellerFeedback((prev) => ({ ...prev, [seller.id]: { ok: true, text: successText } }));
+      showSuccess(successText);
+      await loadAdminData({ preserveBanner: true });
     } catch (err: any) {
-      showError(err?.message || `Could not update ${seller.businessName}. Please try again.`);
+      const errText = err?.message || `Could not update ${seller.businessName}. Please try again.`;
+      setSellerFeedback((prev) => ({ ...prev, [seller.id]: { ok: false, text: errText } }));
+      showError(errText);
     } finally {
       setSavingSellerId(null);
     }
@@ -338,7 +389,7 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
         </div>
         <button
           type="button"
-          onClick={loadAdminData}
+          onClick={() => loadAdminData()}
           disabled={loadingData}
           className="inline-flex items-center justify-center gap-1.5 min-h-[38px] px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-[#0B1F3A] self-start sm:self-auto shrink-0 disabled:opacity-60"
         >
@@ -696,6 +747,19 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
                       <p className="text-xs text-slate-400">No verification documents uploaded yet.</p>
                     )}
                   </div>
+
+                  {/* Inline Per-Seller Decision Feedback */}
+                  {sellerFeedback[s.id] && (
+                    <div
+                      className={`text-xs font-semibold px-3.5 py-2.5 rounded-lg border ${
+                        sellerFeedback[s.id].ok
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : 'bg-red-50 text-red-800 border-red-200'
+                      }`}
+                    >
+                      {sellerFeedback[s.id].text}
+                    </div>
+                  )}
 
                   {/* Quick One-Click Approval Actions */}
                   {!(s.applicationStatus === 'Approved' && s.verifiedBadge) && (
@@ -1208,7 +1272,7 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
               </div>
               <button
                 type="button"
-                onClick={loadAdminData}
+                onClick={() => loadAdminData()}
                 className="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-[#0B1F3A] text-white text-xs font-semibold shrink-0"
               >
                 Search

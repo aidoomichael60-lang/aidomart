@@ -23,11 +23,22 @@ function createDbInstance(): Database.Database {
 
 export let db = createDbInstance();
 
-export function reopenDatabase() {
+export function closeDatabase() {
   try {
     db.close();
   } catch {
     // ignore close error
+  }
+}
+
+export function reopenDatabase() {
+  closeDatabase();
+  for (const suffix of ['-wal', '-shm']) {
+    try {
+      fs.unlinkSync(`${DB_PATH}${suffix}`);
+    } catch {
+      // ignore missing sidecar files
+    }
   }
   db = createDbInstance();
   initDatabase();

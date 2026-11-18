@@ -204,6 +204,9 @@ adminRouter.get('/documents/:docId', (req: Request, res: Response) => {
 adminRouter.post('/sellers/:profileId/review', async (req: Request, res: Response) => {
   const admin = req.authUser!;
   const profileId = Number(req.params.profileId);
+  if (!Number.isFinite(profileId) || profileId <= 0) {
+    return res.status(400).json({ error: 'Invalid seller profile ID.' });
+  }
 
   const profile = db.prepare(`SELECT * FROM seller_profiles WHERE id = ?`).get(profileId) as
     | Record<string, any>

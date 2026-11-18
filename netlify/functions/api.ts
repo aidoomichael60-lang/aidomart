@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
-import { connectLambda, getStore } from '@netlify/blobs';
+import { getStore } from '@netlify/blobs';
 import serverless from 'serverless-http';
 
 const BLOB_STORE_NAME = 'aidomart-storage';
@@ -15,15 +15,46 @@ let cachedMiddlewareModule: typeof import('../../server/middleware.ts') | null =
 let cachedHandler: ReturnType<typeof serverless> | null = null;
 const syncedUploadKeys = new Set<string>();
 
+let isolateQueue: Promise<void> = Promise.resolve();
+function runSerialized<T>(task: () => Promise<T>): Promise<T> {
+  const next = isolateQueue.then(task, task);
+  isolateQueue = next.then(
+    () => undefined,
+    () => undefined
+  );
+  return next;
+}
+
 function resolveTargetDbPath(): string {
   return Boolean(process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME)
     ? path.join('/tmp', 'aidomart.db')
     : path.join(process.cwd(), 'aidomart.db');
 }
 
-function getBlobStore() {
+function canUseStrongConsistency(): boolean {
+  const rawCtx =
+    (globalThis as Record<string, any>).netlifyBlobsContext ||
+    process.env.NETLIFY_BLOBS_CONTEXT;
+  if (typeof rawCtx !== 'string' || !rawCtx) {
+    return false;
+  }
   try {
-    return getStore({ name: BLOB_STORE_NAME, consistency: 'strong' });
+    const parsed = JSON.parse(Buffer.from(rawCtx, 'base64').toString('utf8')) as {
+      edgeURL?: string;
+      uncachedEdgeURL?: string;
+    };
+    return Boolean(parsed?.uncachedEdgeURL || !parsed?.edgeURL);
+  } catch {
+    return false;
+  }
+}
+
+function getBlobStore() {
+  const strong = canUseStrongConsistency();
+  try {
+    return strong
+      ? getStore({ name: BLOB_STORE_NAME, consistency: 'strong' })
+      : getStore(BLOB_STORE_NAME);
   } catch {
     try {
       return getStore(BLOB_STORE_NAME);
@@ -33,28 +64,29 @@ function getBlobStore() {
   }
 }
 
+function getConsistencyOption(): { consistency: 'strong' } | Record<string, never> {
+  return canUseStrongConsistency() ? { consistency: 'strong' } : {};
+}
+
 function toArrayBuffer(buf: Buffer): ArrayBuffer {
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
 }
 
-function resolveRequestPath(event: Record<string, any>): string {
-  if (typeof event.rawUrl === 'string' && event.rawUrl) {
-    try {
-      const parsed = new URL(event.rawUrl);
-      if (parsed.pathname.startsWith('/api') || parsed.pathname.startsWith('/uploads')) {
-        return parsed.pathname;
-      }
-    } catch {
-      // Ignore malformed rawUrl and fall back to event.path
+function resolveRequestPath(rawUrlOrPath: string): string {
+  let pathname = rawUrlOrPath;
+  try {
+    if (/^https?:\/\//i.test(rawUrlOrPath)) {
+      pathname = new URL(rawUrlOrPath).pathname;
     }
+  } catch {
+    pathname = rawUrlOrPath;
   }
 
-  const rawPath = String(event.path || event.rawPath || '/');
   const fnPrefix = '/.netlify/functions/api';
-  if (!rawPath.startsWith(fnPrefix)) {
-    return rawPath;
+  if (!pathname.startsWith(fnPrefix)) {
+    return pathname;
   }
-  const rest = rawPath.slice(fnPrefix.length) || '/';
+  const rest = pathname.slice(fnPrefix.length) || '/';
   if (
     rest === '/api' ||
     rest.startsWith('/api/') ||
@@ -75,9 +107,10 @@ async function syncDatabaseFromBlobsIfUpdated(): Promise<void> {
 
   const targetDbPath = resolveTargetDbPath();
   const dbExistsLocally = fs.existsSync(targetDbPath);
+  const readOpts = getConsistencyOption();
 
   try {
-    const meta = await store.getMetadata(DB_BLOB_KEY, { consistency: 'strong' }).catch(() => null);
+    const meta = await store.getMetadata(DB_BLOB_KEY, readOpts).catch(() => null);
     const remoteEtag = meta?.etag || null;
 
     const needsDownload =
@@ -87,12 +120,22 @@ async function syncDatabaseFromBlobsIfUpdated(): Promise<void> {
     if (!needsDownload) return;
 
     const blobResult = await store
-      .getWithMetadata(DB_BLOB_KEY, { type: 'arrayBuffer', consistency: 'strong' })
+      .getWithMetadata(DB_BLOB_KEY, { type: 'arrayBuffer', ...readOpts })
       .catch(() => null);
 
     const data = blobResult?.data;
     if (data && data.byteLength > 0) {
+      if (initialized && cachedDbModule) {
+        cachedDbModule.closeDatabase();
+      }
       fs.mkdirSync(path.dirname(targetDbPath), { recursive: true });
+      for (const suffix of ['-wal', '-shm']) {
+        try {
+          fs.unlinkSync(`${targetDbPath}${suffix}`);
+        } catch {
+          // ignore missing sidecar files
+        }
+      }
       const tempPath = `${targetDbPath}.download`;
       fs.writeFileSync(tempPath, Buffer.from(data));
       fs.renameSync(tempPath, targetDbPath);
@@ -111,6 +154,7 @@ async function restoreUploadsIfNeeded(reqPath: string, method: string): Promise<
   if (method !== 'GET' || !cachedMiddlewareModule) return;
   const store = getBlobStore();
   if (!store) return;
+  const readOpts = getConsistencyOption();
 
   if (reqPath.startsWith('/uploads/public/')) {
     const fileName = path.basename(reqPath);
@@ -119,7 +163,7 @@ async function restoreUploadsIfNeeded(reqPath: string, method: string): Promise<
     if (fs.existsSync(localPath)) return;
     try {
       const blobKey = `uploads/public/${fileName}`;
-      const data = await store.get(blobKey, { type: 'arrayBuffer', consistency: 'strong' });
+      const data = await store.get(blobKey, { type: 'arrayBuffer', ...readOpts });
       if (data && data.byteLength > 0) {
         fs.mkdirSync(cachedMiddlewareModule.PUBLIC_UPLOAD_DIR, { recursive: true });
         fs.writeFileSync(localPath, Buffer.from(data));
@@ -139,7 +183,7 @@ async function restoreUploadsIfNeeded(reqPath: string, method: string): Promise<
         if (!fileName) continue;
         const localPath = path.join(cachedMiddlewareModule.PRIVATE_UPLOAD_DIR, fileName);
         if (fs.existsSync(localPath)) continue;
-        const data = await store.get(item.key, { type: 'arrayBuffer', consistency: 'strong' });
+        const data = await store.get(item.key, { type: 'arrayBuffer', ...readOpts });
         if (data && data.byteLength > 0) {
           fs.mkdirSync(cachedMiddlewareModule.PRIVATE_UPLOAD_DIR, { recursive: true });
           fs.writeFileSync(localPath, Buffer.from(data));
@@ -154,11 +198,13 @@ async function restoreUploadsIfNeeded(reqPath: string, method: string): Promise<
 
 async function persistStateToBlobs(reqPath: string, method: string): Promise<void> {
   const isMutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
-  const touchesAuthGet =
+  const touchesAuthOrRepairGet =
     method === 'GET' &&
-    (reqPath.includes('/auth/oauth/') || reqPath.includes('/auth/verify-email'));
+    (reqPath.includes('/auth/oauth/') ||
+      reqPath.includes('/auth/verify-email') ||
+      reqPath.includes('/admin/sellers'));
 
-  if (!isMutating && !touchesAuthGet) return;
+  if (!isMutating && !touchesAuthOrRepairGet) return;
 
   const store = getBlobStore();
   if (!store || !cachedDbModule || !cachedMiddlewareModule) return;
@@ -201,7 +247,9 @@ async function persistStateToBlobs(reqPath: string, method: string): Promise<voi
       if (writeRes?.etag) {
         lastSyncedDbEtag = writeRes.etag;
       } else {
-        const meta = await store.getMetadata(DB_BLOB_KEY, { consistency: 'strong' }).catch(() => null);
+        const meta = await store
+          .getMetadata(DB_BLOB_KEY, getConsistencyOption())
+          .catch(() => null);
         if (meta?.etag) {
           lastSyncedDbEtag = meta.etag;
         }
@@ -212,17 +260,9 @@ async function persistStateToBlobs(reqPath: string, method: string): Promise<voi
   }
 }
 
-async function ensureReady(event: Record<string, any>) {
+async function ensureReady() {
   if (!process.env.NETLIFY) {
     process.env.NETLIFY = 'true';
-  }
-
-  try {
-    if (event && typeof event === 'object' && event.blobs) {
-      connectLambda(event as Parameters<typeof connectLambda>[0]);
-    }
-  } catch {
-    // Ignore when running outside Netlify Lambda Blobs context
   }
 
   if (!initialized) {
@@ -242,26 +282,124 @@ async function ensureReady(event: Record<string, any>) {
   }
 }
 
-export async function handler(event: Record<string, any>, context: Record<string, any>) {
-  await ensureReady(event);
+async function toLambdaEvent(req: Request, context: Record<string, any>) {
+  const url = new URL(req.url);
+  const normalizedPath = resolveRequestPath(url.pathname);
+  const method = req.method.toUpperCase();
 
-  const method = String(
-    event.httpMethod || event.requestContext?.http?.method || 'GET'
-  ).toUpperCase();
-  const normalizedPath = resolveRequestPath(event);
+  const headers: Record<string, string> = {};
+  const multiValueHeaders: Record<string, string[]> = {};
+  req.headers.forEach((value, key) => {
+    const lower = key.toLowerCase();
+    headers[lower] = value;
+    multiValueHeaders[lower] = [value];
+  });
 
-  // Rewrite path on cloned event so Express routes match /api/* or /uploads/* reliably
-  const forwardedEvent = {
-    ...event,
+  if (!headers['x-forwarded-proto']) {
+    headers['x-forwarded-proto'] = url.protocol.replace(/:$/, '') || 'https';
+  }
+  if (!headers['x-forwarded-host'] && url.host) {
+    headers['x-forwarded-host'] = url.host;
+  }
+
+  const queryStringParameters: Record<string, string> = {};
+  const multiValueQueryStringParameters: Record<string, string[]> = {};
+  url.searchParams.forEach((value, key) => {
+    queryStringParameters[key] = value;
+    if (!multiValueQueryStringParameters[key]) {
+      multiValueQueryStringParameters[key] = [];
+    }
+    multiValueQueryStringParameters[key].push(value);
+  });
+
+  let body = '';
+  let isBase64Encoded = false;
+  if (!['GET', 'HEAD'].includes(method)) {
+    const buf = Buffer.from(await req.arrayBuffer());
+    if (buf.length > 0) {
+      body = buf.toString('base64');
+      isBase64Encoded = true;
+    }
+  }
+
+  const sourceIp =
+    (typeof context?.ip === 'string' && context.ip) ||
+    headers['x-nf-client-connection-ip'] ||
+    headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+    '';
+
+  return {
+    httpMethod: method,
     path: normalizedPath,
     rawPath: normalizedPath,
+    rawUrl: req.url,
+    headers,
+    multiValueHeaders,
+    queryStringParameters,
+    multiValueQueryStringParameters,
+    body,
+    isBase64Encoded,
+    requestContext: {
+      identity: { sourceIp },
+      requestId: typeof context?.requestId === 'string' ? context.requestId : '',
+    },
   };
+}
 
-  await restoreUploadsIfNeeded(normalizedPath, method);
+function fromLambdaResponse(lambdaRes: Record<string, any>): Response {
+  const statusCode = Number(lambdaRes?.statusCode) || 200;
+  const respHeaders = new Headers();
 
-  const response = await cachedHandler!(forwardedEvent, context);
+  const singleHeaders = (lambdaRes?.headers || {}) as Record<string, unknown>;
+  for (const [key, value] of Object.entries(singleHeaders)) {
+    if (key.toLowerCase() === 'set-cookie') continue;
+    if (value !== undefined && value !== null) {
+      respHeaders.set(key, String(value));
+    }
+  }
 
-  await persistStateToBlobs(normalizedPath, method);
+  const multiHeaders = (lambdaRes?.multiValueHeaders || {}) as Record<string, unknown[]>;
+  for (const [key, values] of Object.entries(multiHeaders)) {
+    if (!Array.isArray(values)) continue;
+    if (key.toLowerCase() === 'set-cookie') {
+      for (const cookieVal of values) {
+        if (cookieVal !== undefined && cookieVal !== null) {
+          respHeaders.append('set-cookie', String(cookieVal));
+        }
+      }
+    } else if (!respHeaders.has(key) && values.length > 0) {
+      respHeaders.set(key, values.map(String).join(', '));
+    }
+  }
 
-  return response;
+  if (typeof singleHeaders['set-cookie'] === 'string' && !respHeaders.has('set-cookie')) {
+    respHeaders.append('set-cookie', singleHeaders['set-cookie']);
+  }
+
+  if (statusCode === 204 || statusCode === 304) {
+    return new Response(null, { status: statusCode, headers: respHeaders });
+  }
+
+  const rawBody = typeof lambdaRes?.body === 'string' ? lambdaRes.body : '';
+  const bodyBytes = lambdaRes?.isBase64Encoded
+    ? Buffer.from(rawBody, 'base64')
+    : Buffer.from(rawBody, 'utf8');
+
+  return new Response(bodyBytes, {
+    status: statusCode,
+    headers: respHeaders,
+  });
+}
+
+export default async function handler(req: Request, context: Record<string, any> = {}) {
+  const event = await toLambdaEvent(req, context);
+  const lambdaResponse = await runSerialized(async () => {
+    await ensureReady();
+    await restoreUploadsIfNeeded(event.path, event.httpMethod);
+    const res = await cachedHandler!(event, context);
+    await persistStateToBlobs(event.path, event.httpMethod);
+    return res;
+  });
+
+  return fromLambdaResponse(lambdaResponse as Record<string, any>);
 }

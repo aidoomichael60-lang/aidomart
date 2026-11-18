@@ -137,6 +137,7 @@ export async function sendTransactionalEmail(opts: SendEmailOptions): Promise<Em
           'api-key': apiKey,
         },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(6000),
       });
 
       if (response.ok) {
