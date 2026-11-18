@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { db, createNotification } from '../db.ts';
+import { db, createNotification, recordActivityLog } from '../db.ts';
 import { escapeHtml, sanitizeText } from '../security.ts';
 import { sendAdminAlertEmail, sendTransactionalEmail } from '../email.ts';
 import {
@@ -24,6 +24,47 @@ function getSellerProfileRow(userId: number) {
        WHERE sp.user_id = ?`
     )
     .get(userId) as Record<string, any> | undefined;
+}
+
+function formatSellerProfile(profile: Record<string, any>) {
+  return {
+    id: profile.id,
+    userId: profile.user_id,
+    legalName: profile.legal_name,
+    businessName: profile.business_name,
+    email: profile.email,
+    phone: profile.phone,
+    description: profile.description,
+    categories: JSON.parse(profile.categories_json || '[]'),
+    physicalAddress: profile.physical_address,
+    locationCity: profile.location_city,
+    deliveryPickupNotes: profile.delivery_pickup_notes,
+    storefrontImage: profile.storefront_image,
+    businessPhotos: JSON.parse(profile.business_photos_json || '[]'),
+    applicationStatus: profile.application_status,
+    verifiedBadge: Boolean(profile.verified_badge),
+    adminFeedback: profile.admin_feedback,
+    physicalInspectionConducted: Boolean(profile.physical_inspection_conducted),
+    physicalInspectionDate: profile.physical_inspection_date,
+    physicalInspectionNotes: profile.physical_inspection_notes,
+    reviewedByName: profile.reviewed_by_name,
+    reviewedAt: profile.reviewed_at,
+    paymentSettings: {
+      momoEnabled: Boolean(profile.momo_enabled),
+      momoProvider: profile.momo_provider || '',
+      momoAccountName: profile.momo_account_name || '',
+      momoNumber: profile.momo_number || '',
+      momoInstructions: profile.momo_instructions || '',
+      bankEnabled: Boolean(profile.bank_enabled),
+      bankName: profile.bank_name || '',
+      bankAccountName: profile.bank_account_name || '',
+      bankAccountNumber: profile.bank_account_number || '',
+      bankBranch: profile.bank_branch || '',
+      bankInstructions: profile.bank_instructions || '',
+    },
+    createdAt: profile.created_at,
+    updatedAt: profile.updated_at,
+  };
 }
 
 sellerRouter.get('/dashboard', (req: Request, res: Response) => {
@@ -144,9 +185,16 @@ sellerRouter.put('/application', async (req: Request, res: Response) => {
 
   let newStatus = profile.application_status;
   if (submitForReview) {
-    if (!businessName || !description || !physicalAddress) {
+    const missing: string[] = [];
+    if (!legalName) missing.push('Legal Name');
+    if (!businessName) missing.push('Business Name');
+    if (!phone) missing.push('Telephone Number');
+    if (!physicalAddress) missing.push('Physical Business Address');
+    if (!locationCity) missing.push('City / Region');
+    if (!description) missing.push('Business Description');
+    if (missing.length > 0) {
       return res.status(400).json({
-        error: 'Business name, description, and physical address are required before submitting for review.',
+        error: `Please complete these required fields before submitting for approval: ${missing.join(', ')}.`,
       });
     }
     if (['Draft', 'Additional Information Required', 'Rejected'].includes(profile.application_status)) {
@@ -174,6 +222,12 @@ sellerRouter.put('/application', async (req: Request, res: Response) => {
       profile.id
     );
 
+    db.prepare(`UPDATE users SET full_name = ?, phone = ? WHERE id = ?`).run(
+      legalName,
+      phone || null,
+      sellerId
+    );
+
     if (newStatus !== profile.application_status) {
       db.prepare(
         `INSERT INTO seller_audit_logs (seller_profile_id, actor_user_id, action, previous_status, new_status, verified_badge_state, physical_inspection_conducted, notes)
@@ -186,8 +240,31 @@ sellerRouter.put('/application', async (req: Request, res: Response) => {
         profile.verified_badge,
         profile.physical_inspection_conducted
       );
+    } else {
+      db.prepare(
+        `INSERT INTO seller_audit_logs (seller_profile_id, actor_user_id, action, previous_status, new_status, verified_badge_state, physical_inspection_conducted, notes)
+         VALUES (?, ?, 'Seller Application Updated', ?, ?, ?, ?, 'Seller updated business profile & verification details.')`
+      ).run(
+        profile.id,
+        sellerId,
+        profile.application_status,
+        newStatus,
+        profile.verified_badge,
+        profile.physical_inspection_conducted
+      );
     }
   })();
+
+  recordActivityLog({
+    actorUserId: sellerId,
+    actorEmail: profile.email,
+    actorRole: 'seller',
+    eventType: submitForReview ? 'seller_application_submitted' : 'seller_application_saved',
+    summary: submitForReview
+      ? `${businessName} submitted their seller application for Admin approval`
+      : `${businessName} saved business profile changes`,
+    details: `Status: ${newStatus}`,
+  });
 
   if (submitForReview && newStatus === 'Pending Review') {
     const admins = db.prepare(`SELECT id FROM users WHERE role = 'admin'`).all() as Array<{ id: number }>;
@@ -230,14 +307,22 @@ sellerRouter.put('/application', async (req: Request, res: Response) => {
     });
   }
 
-  return res.json({ message: 'Seller application updated.', applicationStatus: newStatus });
+  const refreshed = getSellerProfileRow(sellerId);
+  return res.json({
+    message: submitForReview
+      ? 'Application saved and submitted for Administrator approval.'
+      : 'Seller draft saved.',
+    applicationStatus: newStatus,
+    profile: refreshed ? formatSellerProfile(refreshed) : null,
+  });
 });
 
 sellerRouter.post(
   '/application/documents',
   privateDocUpload.array('documents', 6),
   (req: Request, res: Response) => {
-    const profile = getSellerProfileRow(req.authUser!.id);
+    const sellerId = req.authUser!.id;
+    const profile = getSellerProfileRow(sellerId);
     if (!profile) return res.status(404).json({ error: 'Seller profile not found.' });
 
     const files = (req.files as Express.Multer.File[]) || [];
@@ -255,8 +340,29 @@ sellerRouter.post(
       insertDoc.run(profile.id, file.originalname.slice(0, 180), file.filename, file.mimetype, file.size, docType);
     }
 
+    db.prepare(
+      `INSERT INTO seller_audit_logs (seller_profile_id, actor_user_id, action, previous_status, new_status, verified_badge_state, physical_inspection_conducted, notes)
+       VALUES (?, ?, 'Verification Documents Uploaded', ?, ?, ?, ?, ?)`
+    ).run(
+      profile.id,
+      sellerId,
+      profile.application_status,
+      profile.application_status,
+      profile.verified_badge,
+      profile.physical_inspection_conducted,
+      `Uploaded ${files.length} verification document(s): ${files.map((f) => f.originalname).join(', ').slice(0, 200)}`
+    );
+
+    recordActivityLog({
+      actorUserId: sellerId,
+      actorEmail: profile.email,
+      actorRole: 'seller',
+      eventType: 'seller_docs_uploaded',
+      summary: `${profile.business_name} uploaded ${files.length} verification document(s)`,
+    });
+
     return res.status(201).json({
-      message: `${files.length} verification document(s) securely uploaded for admin review.`,
+      message: `${files.length} verification document(s) uploaded for administrator review.`,
     });
   }
 );
@@ -265,12 +371,13 @@ sellerRouter.post(
   '/profile/photos',
   publicImageUpload.array('photos', 5),
   (req: Request, res: Response) => {
-    const profile = getSellerProfileRow(req.authUser!.id);
+    const sellerId = req.authUser!.id;
+    const profile = getSellerProfileRow(sellerId);
     if (!profile) return res.status(404).json({ error: 'Seller profile not found.' });
 
     const files = (req.files as Express.Multer.File[]) || [];
     if (files.length === 0) {
-      return res.status(400).json({ error: 'Please choose at least one JPG, PNG, or WebP image.' });
+      return res.status(400).json({ error: 'Please choose at least one JPG, PNG, WebP, or GIF image.' });
     }
 
     const kind = req.body?.kind === 'storefront' ? 'storefront' : 'business';
@@ -281,7 +388,30 @@ sellerRouter.post(
         urls[0],
         profile.id
       );
-      return res.json({ message: 'Storefront image updated.', storefrontImage: urls[0] });
+      db.prepare(
+        `INSERT INTO seller_audit_logs (seller_profile_id, actor_user_id, action, previous_status, new_status, verified_badge_state, physical_inspection_conducted, notes)
+         VALUES (?, ?, 'Storefront Picture Updated', ?, ?, ?, ?, 'Seller uploaded a new storefront profile picture.')`
+      ).run(
+        profile.id,
+        sellerId,
+        profile.application_status,
+        profile.application_status,
+        profile.verified_badge,
+        profile.physical_inspection_conducted
+      );
+      recordActivityLog({
+        actorUserId: sellerId,
+        actorEmail: profile.email,
+        actorRole: 'seller',
+        eventType: 'seller_photo_updated',
+        summary: `${profile.business_name} updated their storefront profile picture`,
+      });
+      const refreshed = getSellerProfileRow(sellerId);
+      return res.json({
+        message: 'Profile picture updated successfully.',
+        storefrontImage: urls[0],
+        profile: refreshed ? formatSellerProfile(refreshed) : null,
+      });
     }
 
     const existing = JSON.parse(profile.business_photos_json || '[]') as string[];
@@ -290,43 +420,135 @@ sellerRouter.post(
       JSON.stringify(merged),
       profile.id
     );
-    return res.json({ message: 'Business photos uploaded.', businessPhotos: merged });
+    recordActivityLog({
+      actorUserId: sellerId,
+      actorEmail: profile.email,
+      actorRole: 'seller',
+      eventType: 'seller_gallery_updated',
+      summary: `${profile.business_name} added ${files.length} business gallery photo(s)`,
+    });
+    const refreshed = getSellerProfileRow(sellerId);
+    return res.json({
+      message: 'Business gallery photos uploaded.',
+      businessPhotos: merged,
+      profile: refreshed ? formatSellerProfile(refreshed) : null,
+    });
   }
 );
 
-sellerRouter.put('/profile', (req: Request, res: Response) => {
-  const profile = getSellerProfileRow(req.authUser!.id);
+sellerRouter.delete('/profile/photos', (req: Request, res: Response) => {
+  const sellerId = req.authUser!.id;
+  const profile = getSellerProfileRow(sellerId);
   if (!profile) return res.status(404).json({ error: 'Seller profile not found.' });
 
-  const businessName = sanitizeText(req.body?.businessName, 140) || profile.business_name;
-  const description = sanitizeText(req.body?.description, 1200);
-  const phone = sanitizeText(req.body?.phone, 40) || profile.phone;
-  const locationCity = sanitizeText(req.body?.locationCity, 100);
-  const deliveryPickupNotes = sanitizeText(req.body?.deliveryPickupNotes, 500);
+  const targetUrl = sanitizeText(req.body?.url, 300);
+  if (!targetUrl) return res.status(400).json({ error: 'Photo URL is required.' });
+
+  const existing = JSON.parse(profile.business_photos_json || '[]') as string[];
+  const nextPhotos = existing.filter((u) => u !== targetUrl);
+  db.prepare(`UPDATE seller_profiles SET business_photos_json = ?, updated_at = datetime('now') WHERE id = ?`).run(
+    JSON.stringify(nextPhotos),
+    profile.id
+  );
+  const refreshed = getSellerProfileRow(sellerId);
+  return res.json({
+    message: 'Business photo removed.',
+    businessPhotos: nextPhotos,
+    profile: refreshed ? formatSellerProfile(refreshed) : null,
+  });
+});
+
+sellerRouter.put('/profile', (req: Request, res: Response) => {
+  const sellerId = req.authUser!.id;
+  const profile = getSellerProfileRow(sellerId);
+  if (!profile) return res.status(404).json({ error: 'Seller profile not found.' });
+
+  const legalName =
+    req.body?.legalName !== undefined ? sanitizeText(req.body.legalName, 120) : profile.legal_name;
+  const businessName =
+    req.body?.businessName !== undefined ? sanitizeText(req.body.businessName, 140) : profile.business_name;
+  const description =
+    req.body?.description !== undefined ? sanitizeText(req.body.description, 1200) : profile.description;
+  const phone =
+    req.body?.phone !== undefined ? sanitizeText(req.body.phone, 40) : profile.phone;
+  const physicalAddress =
+    req.body?.physicalAddress !== undefined
+      ? sanitizeText(req.body.physicalAddress, 250)
+      : profile.physical_address;
+  const locationCity =
+    req.body?.locationCity !== undefined ? sanitizeText(req.body.locationCity, 100) : profile.location_city;
+  const deliveryPickupNotes =
+    req.body?.deliveryPickupNotes !== undefined
+      ? sanitizeText(req.body.deliveryPickupNotes, 500)
+      : profile.delivery_pickup_notes;
   const categories = Array.isArray(req.body?.categories)
     ? req.body.categories.map((c: unknown) => sanitizeText(c, 60)).filter(Boolean)
     : JSON.parse(profile.categories_json || '[]');
 
-  db.prepare(
-    `UPDATE seller_profiles
-     SET business_name = ?, description = ?, phone = ?, location_city = ?,
-         delivery_pickup_notes = ?, categories_json = ?, updated_at = datetime('now')
-     WHERE id = ?`
-  ).run(
-    businessName,
-    description,
-    phone,
-    locationCity,
-    deliveryPickupNotes,
-    JSON.stringify(categories),
-    profile.id
-  );
+  if (!businessName) {
+    return res.status(400).json({ error: 'Business Name cannot be empty.' });
+  }
+  if (!phone) {
+    return res.status(400).json({ error: 'Contact telephone number cannot be empty.' });
+  }
 
-  return res.json({ message: 'Public storefront profile updated.' });
+  db.transaction(() => {
+    db.prepare(
+      `UPDATE seller_profiles
+       SET legal_name = ?, business_name = ?, description = ?, phone = ?, physical_address = ?,
+           location_city = ?, delivery_pickup_notes = ?, categories_json = ?, updated_at = datetime('now')
+       WHERE id = ?`
+    ).run(
+      legalName || profile.legal_name,
+      businessName,
+      description,
+      phone,
+      physicalAddress,
+      locationCity,
+      deliveryPickupNotes,
+      JSON.stringify(categories),
+      profile.id
+    );
+
+    db.prepare(`UPDATE users SET full_name = ?, phone = ? WHERE id = ?`).run(
+      legalName || profile.legal_name,
+      phone || null,
+      sellerId
+    );
+
+    db.prepare(
+      `INSERT INTO seller_audit_logs (seller_profile_id, actor_user_id, action, previous_status, new_status, verified_badge_state, physical_inspection_conducted, notes)
+       VALUES (?, ?, 'Profile Updated', ?, ?, ?, ?, ?)`
+    ).run(
+      profile.id,
+      sellerId,
+      profile.application_status,
+      profile.application_status,
+      profile.verified_badge,
+      profile.physical_inspection_conducted,
+      `Updated business profile (${businessName}, ${locationCity || 'no city set'}).`
+    );
+  })();
+
+  recordActivityLog({
+    actorUserId: sellerId,
+    actorEmail: profile.email,
+    actorRole: 'seller',
+    eventType: 'seller_profile_updated',
+    summary: `${businessName} updated their storefront & business profile`,
+    details: locationCity || physicalAddress || '',
+  });
+
+  const refreshed = getSellerProfileRow(sellerId);
+  return res.json({
+    message: 'Business profile updated successfully.',
+    profile: refreshed ? formatSellerProfile(refreshed) : null,
+  });
 });
 
 sellerRouter.put('/payment-settings', (req: Request, res: Response) => {
-  const profile = getSellerProfileRow(req.authUser!.id);
+  const sellerId = req.authUser!.id;
+  const profile = getSellerProfileRow(sellerId);
   if (!profile) return res.status(404).json({ error: 'Seller profile not found.' });
 
   const momoEnabled = req.body?.momoEnabled ? 1 : 0;
@@ -370,7 +592,22 @@ sellerRouter.put('/payment-settings', (req: Request, res: Response) => {
     profile.id
   );
 
-  return res.json({ message: 'Manual payment details saved accurately.' });
+  recordActivityLog({
+    actorUserId: sellerId,
+    actorEmail: profile.email,
+    actorRole: 'seller',
+    eventType: 'seller_payment_settings_updated',
+    summary: `${profile.business_name} updated payment receiving settings`,
+    details: [momoEnabled ? `MoMo: ${momoProvider}` : '', bankEnabled ? `Bank: ${bankName}` : '']
+      .filter(Boolean)
+      .join(' · '),
+  });
+
+  const refreshed = getSellerProfileRow(sellerId);
+  return res.json({
+    message: 'Payment receiving details saved successfully.',
+    profile: refreshed ? formatSellerProfile(refreshed) : null,
+  });
 });
 
 sellerRouter.get('/products', (req: Request, res: Response) => {

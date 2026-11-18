@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
+  AlertCircle,
   BarChart3,
   CheckCircle2,
   CreditCard,
-  FileCheck,
   MapPin,
-  Megaphone,
   MessageCircle,
   MessageSquare,
   Package,
@@ -13,7 +12,6 @@ import {
   Send,
   ShoppingBag,
   Store,
-  Tag,
   Trash2,
   Truck,
   Upload,
@@ -27,11 +25,9 @@ import type {
   Product,
   SellerConversation,
   SellerProfile,
-  SellerPromotion,
 } from '../types/marketplace';
 import { VerifiedBadge } from '../components/VerifiedBadge';
 import { SafeAssetImage } from '../components/SafeAssetImage';
-import { PromoManagerPanel } from '../components/PromoManagerPanel';
 import { PhoneInput } from '../components/PhoneInput';
 import { WhatsAppIcon, buildWhatsAppUrl } from '../components/WhatsAppIcon';
 import { useLoginGreeting } from '../utils/greeting';
@@ -43,16 +39,28 @@ interface SellerDashboardProps {
 
 type SellerTab =
   | 'overview'
-  | 'application'
   | 'profile'
   | 'products'
   | 'orders'
   | 'messages'
-  | 'payment-settings'
   | 'payments'
-  | 'promotions'
-  | 'feedback'
-  | 'promocodes';
+  | 'feedback';
+
+function normalizeSellerTab(rawTab: string | null | undefined): SellerTab {
+  if (!rawTab) return 'overview';
+  if (rawTab === 'application' || rawTab === 'profile') return 'profile';
+  if (rawTab === 'payment-settings' || rawTab === 'payments') return 'payments';
+  if (
+    rawTab === 'overview' ||
+    rawTab === 'products' ||
+    rawTab === 'orders' ||
+    rawTab === 'messages' ||
+    rawTab === 'feedback'
+  ) {
+    return rawTab;
+  }
+  return 'overview';
+}
 
 const TRACKING_STAGE_PRESETS = [
   'Order Placed',
@@ -65,46 +73,46 @@ const TRACKING_STAGE_PRESETS = [
 ];
 
 export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardProps) {
-  const { user, settings, refreshUser } = useAuth();
-  const [tab, setTab] = useState<SellerTab>(() => {
-    const q = initialQuery?.get('tab');
-    if (
-      q === 'application' ||
-      q === 'profile' ||
-      q === 'products' ||
-      q === 'orders' ||
-      q === 'messages' ||
-      q === 'payment-settings' ||
-      q === 'payments' ||
-      q === 'promotions' ||
-      q === 'feedback' ||
-      q === 'promocodes'
-    ) {
-      return q;
-    }
-    return 'overview';
-  });
+  const { user, refreshUser } = useAuth();
+  const [tab, setTab] = useState<SellerTab>(() => normalizeSellerTab(initialQuery?.get('tab')));
 
   const [profile, setProfile] = useState<SellerProfile | null>(null);
   const { greeting } = useLoginGreeting(
     user ? { ...user, sellerProfile: profile ?? user.sellerProfile } : null
   );
   const [documents, setDocuments] = useState<any[]>([]);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
 
   const [categories, setCategories] = useState<MarketplaceCategory[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [sellerPromos, setSellerPromos] = useState<SellerPromotion[]>([]);
   const [complaints, setComplaints] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
   const [statusMsg, setStatusMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Focused action loading & inline feedback states
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingApp, setSavingApp] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [uploadingDocs, setUploadingDocs] = useState(false);
+  const [uploadingProductImages, setUploadingProductImages] = useState(false);
+  const [savingPaymentSettings, setSavingPaymentSettings] = useState(false);
+  const [verifyingOrderId, setVerifyingOrderId] = useState<number | null>(null);
   const [busyProductId, setBusyProductId] = useState<number | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
+  const [replyingKey, setReplyingKey] = useState<string | null>(null);
 
-  // Application edit state
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
+  const [photoFeedback, setPhotoFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const [docFeedback, setDocFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const [profileFeedback, setProfileFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const [paymentFeedback, setPaymentFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const [customCategoryInput, setCustomCategoryInput] = useState('');
+
+  // Business & Verification form state
   const [appForm, setAppForm] = useState({
     legalName: '',
     businessName: '',
@@ -144,14 +152,7 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
     published: true,
   });
 
-  // Homepage promotion form
-  const [hpPromoForm, setHpPromoForm] = useState({
-    title: '',
-    description: '',
-    productId: '',
-  });
-
-  // Payment verification note
+  // Payment verification note & replies
   const [verifyNotes, setVerifyNotes] = useState<Record<number, string>>({});
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
 
@@ -176,35 +177,51 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
   const [buyerReplyDraft, setBuyerReplyDraft] = useState('');
   const [sendingBuyerReply, setSendingBuyerReply] = useState(false);
 
+  const syncFormFromProfile = (p: SellerProfile) => {
+    setProfile(p);
+    setAppForm({
+      legalName: p.legalName || '',
+      businessName: p.businessName || '',
+      phone: p.phone || '',
+      description: p.description || '',
+      physicalAddress: p.physicalAddress || '',
+      locationCity: p.locationCity || '',
+      deliveryPickupNotes: p.deliveryPickupNotes || '',
+      categories: p.categories || [],
+    });
+    if (p.paymentSettings) {
+      setPayForm({
+        momoEnabled: Boolean(p.paymentSettings.momoEnabled),
+        momoProvider: p.paymentSettings.momoProvider || 'MTN Mobile Money',
+        momoAccountName: p.paymentSettings.momoAccountName || '',
+        momoNumber: p.paymentSettings.momoNumber || '',
+        momoInstructions: p.paymentSettings.momoInstructions || '',
+        bankEnabled: Boolean(p.paymentSettings.bankEnabled),
+        bankName: p.paymentSettings.bankName || '',
+        bankAccountName: p.paymentSettings.bankAccountName || '',
+        bankAccountNumber: p.paymentSettings.bankAccountNumber || '',
+        bankBranch: p.paymentSettings.bankBranch || '',
+        bankInstructions: p.paymentSettings.bankInstructions || '',
+      });
+    }
+  };
+
   const loadAll = async () => {
     try {
-      const [dash, cats, prods, ords, promos, fb, msgs] = await Promise.all([
-        apiRequest<{ profile: SellerProfile; documents: any[]; auditLogs: any[]; analytics: any }>(
+      const [dash, cats, prods, ords, fb, msgs] = await Promise.all([
+        apiRequest<{ profile: SellerProfile; documents: any[]; analytics: any }>(
           '/api/seller/dashboard'
         ),
         apiRequest<{ categories: MarketplaceCategory[] }>('/api/marketplace/categories'),
         apiRequest<{ products: Product[] }>('/api/seller/products'),
         apiRequest<{ orders: Order[] }>('/api/seller/orders'),
-        apiRequest<{ promotions: SellerPromotion[] }>('/api/seller/promotions'),
         apiRequest<{ complaints: any[]; reviews: any[] }>('/api/seller/complaints'),
         apiRequest<{ conversations: SellerConversation[] }>('/api/seller/messages'),
       ]);
 
-      setProfile(dash.profile);
+      syncFormFromProfile(dash.profile);
       setDocuments(dash.documents || []);
-      setAuditLogs(dash.auditLogs || []);
       setAnalytics(dash.analytics);
-      setAppForm({
-        legalName: dash.profile.legalName,
-        businessName: dash.profile.businessName,
-        phone: dash.profile.phone,
-        description: dash.profile.description,
-        physicalAddress: dash.profile.physicalAddress,
-        locationCity: dash.profile.locationCity,
-        deliveryPickupNotes: dash.profile.deliveryPickupNotes,
-        categories: dash.profile.categories || [],
-      });
-      setPayForm(dash.profile.paymentSettings);
 
       const catList = cats.categories || [];
       setCategories(catList);
@@ -213,7 +230,6 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
       }
       setProducts(prods.products || []);
       setOrders(ords.orders || []);
-      setSellerPromos(promos.promotions || []);
       setComplaints(fb.complaints || []);
       setReviews(fb.reviews || []);
       const convList = msgs.conversations || [];
@@ -222,27 +238,15 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
         setSelectedBuyerId(convList[0].buyerId);
       }
     } catch {
-      // ignore
+      // ignore transient load failures
     }
   };
 
   useEffect(() => {
     const qTab = initialQuery?.get('tab');
     const qBuyerId = initialQuery?.get('buyerId');
-    if (
-      qTab === 'overview' ||
-      qTab === 'application' ||
-      qTab === 'profile' ||
-      qTab === 'products' ||
-      qTab === 'orders' ||
-      qTab === 'messages' ||
-      qTab === 'payment-settings' ||
-      qTab === 'payments' ||
-      qTab === 'promotions' ||
-      qTab === 'feedback' ||
-      qTab === 'promocodes'
-    ) {
-      setTab(qTab);
+    if (qTab) {
+      setTab(normalizeSellerTab(qTab));
     }
     if (qBuyerId) {
       setSelectedBuyerId(Number(qBuyerId));
@@ -254,6 +258,14 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
       loadAll();
     }
   }, [user?.id, user?.role]);
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreviewUrl) {
+        URL.revokeObjectURL(avatarPreviewUrl);
+      }
+    };
+  }, [avatarPreviewUrl]);
 
   if (!user || user.role !== 'seller') {
     return (
@@ -285,96 +297,246 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
     }
   };
 
-  const handleSaveApplication = async (submitForReview: boolean) => {
+  // Compute missing required info for Admin Approval
+  const requiredApprovalChecks = [
+    { key: 'legalName', label: 'Legal Name', done: Boolean(appForm.legalName.trim()) },
+    { key: 'businessName', label: 'Business Name', done: Boolean(appForm.businessName.trim()) },
+    { key: 'phone', label: 'Telephone Number', done: Boolean(appForm.phone.trim()) },
+    { key: 'locationCity', label: 'City / Region', done: Boolean(appForm.locationCity.trim()) },
+    { key: 'physicalAddress', label: 'Physical Business Address', done: Boolean(appForm.physicalAddress.trim()) },
+    { key: 'description', label: 'Business Description', done: Boolean(appForm.description.trim()) },
+  ];
+  const missingRequiredFields = requiredApprovalChecks.filter((c) => !c.done).map((c) => c.label);
+
+  const recommendedChecks = [
+    { label: 'Storefront Profile Picture', done: Boolean(profile?.storefrontImage || avatarPreviewUrl) },
+    { label: 'Product Categories', done: appForm.categories.length > 0 },
+    { label: 'Payment Receiving Method', done: Boolean(payForm.momoEnabled || payForm.bankEnabled) },
+  ];
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileFeedback(null);
+    if (!appForm.businessName.trim() || !appForm.phone.trim()) {
+      const msg = 'Business Name and Contact Telephone Number are required.';
+      setProfileFeedback({ ok: false, text: msg });
+      notifyResult(msg, true);
+      return;
+    }
+
+    setSavingProfile(true);
     try {
-      const res = await apiRequest<{ message: string }>('/api/seller/application', {
+      const res = await apiRequest<{ message: string; profile?: SellerProfile }>('/api/seller/profile', {
         method: 'PUT',
-        body: { ...appForm, submitForReview },
+        body: {
+          legalName: appForm.legalName.trim(),
+          businessName: appForm.businessName.trim(),
+          description: appForm.description.trim(),
+          phone: appForm.phone.trim(),
+          physicalAddress: appForm.physicalAddress.trim(),
+          locationCity: appForm.locationCity.trim(),
+          deliveryPickupNotes: appForm.deliveryPickupNotes.trim(),
+          categories: appForm.categories,
+        },
       });
-      notifyResult(res.message);
-      await loadAll();
-      await refreshUser();
+      if (res.profile) {
+        syncFormFromProfile(res.profile);
+      }
+      setProfileFeedback({ ok: true, text: res.message || 'Business profile updated.' });
+      notifyResult(res.message || 'Business profile updated.');
+      await Promise.all([loadAll(), refreshUser()]);
     } catch (err: any) {
-      notifyResult(err.message, true);
+      const msg = err?.message || 'Could not update profile.';
+      setProfileFeedback({ ok: false, text: msg });
+      notifyResult(msg, true);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleSaveApplication = async (submitForReview: boolean) => {
+    setProfileFeedback(null);
+    if (submitForReview && missingRequiredFields.length > 0) {
+      const msg = `Please fill in all required information before submitting for admin approval: ${missingRequiredFields.join(', ')}.`;
+      setProfileFeedback({ ok: false, text: msg });
+      notifyResult(msg, true);
+      return;
+    }
+
+    if (submitForReview) setSavingApp(true);
+    else setSavingDraft(true);
+
+    try {
+      const res = await apiRequest<{
+        message: string;
+        applicationStatus?: string;
+        profile?: SellerProfile;
+      }>('/api/seller/application', {
+        method: 'PUT',
+        body: {
+          legalName: appForm.legalName.trim(),
+          businessName: appForm.businessName.trim(),
+          phone: appForm.phone.trim(),
+          description: appForm.description.trim(),
+          physicalAddress: appForm.physicalAddress.trim(),
+          locationCity: appForm.locationCity.trim(),
+          deliveryPickupNotes: appForm.deliveryPickupNotes.trim(),
+          categories: appForm.categories,
+          submitForReview,
+        },
+      });
+      if (res.profile) {
+        syncFormFromProfile(res.profile);
+      }
+      setProfileFeedback({ ok: true, text: res.message });
+      notifyResult(res.message);
+      await Promise.all([loadAll(), refreshUser()]);
+    } catch (err: any) {
+      const msg = err?.message || 'Could not save seller application.';
+      setProfileFeedback({ ok: false, text: msg });
+      notifyResult(msg, true);
+    } finally {
+      setSavingApp(false);
+      setSavingDraft(false);
     }
   };
 
   const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    setDocFeedback(null);
+    setUploadingDocs(true);
     const fd = new FormData();
     Array.from(files).forEach((f) => fd.append('documents', f));
     try {
       const res = await apiUpload<{ message: string }>('/api/seller/application/documents', fd);
+      setDocFeedback({ ok: true, text: res.message });
       notifyResult(res.message);
       await loadAll();
     } catch (err: any) {
-      notifyResult(err.message, true);
-    }
-  };
-
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, kind: 'storefront' | 'business') => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const fd = new FormData();
-    fd.append('kind', kind);
-    Array.from(files).forEach((f) => fd.append('photos', f));
-    try {
-      const res = await apiUpload<{ message: string }>('/api/seller/profile/photos', fd);
-      notifyResult(res.message);
-      await Promise.all([loadAll(), refreshUser()]);
-    } catch (err: any) {
-      notifyResult(err.message, true);
+      const msg = err?.message || 'Could not upload verification document.';
+      setDocFeedback({ ok: false, text: msg });
+      notifyResult(msg, true);
     } finally {
+      setUploadingDocs(false);
       e.target.value = '';
     }
   };
 
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePhotoUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    kind: 'storefront' | 'business'
+  ) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setPhotoFeedback(null);
+
+    if (kind === 'storefront') {
+      if (avatarPreviewUrl) URL.revokeObjectURL(avatarPreviewUrl);
+      const localObjUrl = URL.createObjectURL(files[0]);
+      setAvatarPreviewUrl(localObjUrl);
+      setUploadingAvatar(true);
+    } else {
+      setUploadingGallery(true);
+    }
+
+    const fd = new FormData();
+    fd.append('kind', kind);
+    Array.from(files).forEach((f) => fd.append('photos', f));
     try {
-      const res = await apiRequest<{ message: string }>('/api/seller/profile', {
-        method: 'PUT',
-        body: {
-          businessName: appForm.businessName,
-          description: appForm.description,
-          phone: appForm.phone,
-          locationCity: appForm.locationCity,
-          deliveryPickupNotes: appForm.deliveryPickupNotes,
-          categories: appForm.categories,
-        },
-      });
-      notifyResult(res.message);
+      const res = await apiUpload<{
+        message: string;
+        storefrontImage?: string;
+        profile?: SellerProfile;
+      }>('/api/seller/profile/photos', fd);
+
+      if (res.profile) {
+        syncFormFromProfile(res.profile);
+      } else if (kind === 'storefront' && res.storefrontImage && profile) {
+        setProfile({ ...profile, storefrontImage: res.storefrontImage });
+      }
+      setPhotoFeedback({ ok: true, text: res.message || 'Photo updated.' });
+      notifyResult(res.message || 'Photo updated.');
       await Promise.all([loadAll(), refreshUser()]);
+      if (kind === 'storefront') {
+        setAvatarPreviewUrl(null);
+      }
     } catch (err: any) {
-      notifyResult(err.message, true);
+      if (kind === 'storefront') {
+        setAvatarPreviewUrl(null);
+      }
+      const msg = err?.message || 'Could not upload image. Please select a JPG, PNG, or WebP photo under 10 MB.';
+      setPhotoFeedback({ ok: false, text: msg });
+      notifyResult(msg, true);
+    } finally {
+      setUploadingAvatar(false);
+      setUploadingGallery(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDeleteBusinessPhoto = async (photoUrl: string) => {
+    setPhotoFeedback(null);
+    try {
+      const res = await apiRequest<{ message: string; profile?: SellerProfile }>(
+        '/api/seller/profile/photos',
+        {
+          method: 'DELETE',
+          body: { url: photoUrl },
+        }
+      );
+      if (res.profile) {
+        syncFormFromProfile(res.profile);
+      }
+      setPhotoFeedback({ ok: true, text: res.message });
+      await loadAll();
+    } catch (err: any) {
+      setPhotoFeedback({ ok: false, text: err?.message || 'Could not remove photo.' });
     }
   };
 
   const handleSavePaymentSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPaymentFeedback(null);
+    setSavingPaymentSettings(true);
     try {
-      const res = await apiRequest<{ message: string }>('/api/seller/payment-settings', {
-        method: 'PUT',
-        body: payForm,
-      });
+      const res = await apiRequest<{ message: string; profile?: SellerProfile }>(
+        '/api/seller/payment-settings',
+        {
+          method: 'PUT',
+          body: payForm,
+        }
+      );
+      if (res.profile) {
+        syncFormFromProfile(res.profile);
+      }
+      setPaymentFeedback({ ok: true, text: res.message });
       notifyResult(res.message);
       await Promise.all([loadAll(), refreshUser()]);
     } catch (err: any) {
-      notifyResult(err.message, true);
+      const msg = err?.message || 'Could not save payment settings.';
+      setPaymentFeedback({ ok: false, text: msg });
+      notifyResult(msg, true);
+    } finally {
+      setSavingPaymentSettings(false);
     }
   };
 
   const handleProductImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    setUploadingProductImages(true);
     const fd = new FormData();
     Array.from(files).forEach((f) => fd.append('images', f));
     try {
       const res = await apiUpload<{ images: string[] }>('/api/seller/products/upload-images', fd);
       setProdForm((p) => ({ ...p, images: [...p.images, ...res.images].slice(0, 5) }));
+      notifyResult('Product images uploaded.');
     } catch (err: any) {
-      notifyResult(err.message, true);
+      notifyResult(err?.message || 'Could not upload product images.', true);
+    } finally {
+      setUploadingProductImages(false);
+      e.target.value = '';
     }
   };
 
@@ -423,7 +585,7 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
       });
       await loadAll();
     } catch (err: any) {
-      notifyResult(err.message, true);
+      notifyResult(err?.message || 'Could not save product.', true);
     } finally {
       setSavingProduct(false);
     }
@@ -438,7 +600,7 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
       notifyResult(res.message);
       await loadAll();
     } catch (err: any) {
-      notifyResult(err.message, true);
+      notifyResult(err?.message || 'Could not update order status.', true);
     }
   };
 
@@ -470,7 +632,7 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
       setTrackingOrderId(null);
       await loadAll();
     } catch (err: any) {
-      notifyResult(err.message || 'Could not update tracking.', true);
+      notifyResult(err?.message || 'Could not update tracking.', true);
     } finally {
       setSavingTracking(false);
     }
@@ -488,13 +650,14 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
       setBuyerReplyDraft('');
       await loadAll();
     } catch (err: any) {
-      notifyResult(err.message || 'Could not send reply.', true);
+      notifyResult(err?.message || 'Could not send reply.', true);
     } finally {
       setSendingBuyerReply(false);
     }
   };
 
   const handleVerifyPayment = async (orderId: number, decision: string, amountDue: number) => {
+    setVerifyingOrderId(orderId);
     try {
       const res = await apiRequest<{ message: string }>(`/api/seller/payments/${orderId}/verify`, {
         method: 'POST',
@@ -507,83 +670,115 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
       notifyResult(res.message);
       await loadAll();
     } catch (err: any) {
-      notifyResult(err.message, true);
+      notifyResult(err?.message || 'Could not update payment status.', true);
+    } finally {
+      setVerifyingOrderId(null);
     }
   };
 
   const totalUnreadMessages = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
   const activeBuyerConversation =
     conversations.find((c) => c.buyerId === selectedBuyerId) || conversations[0] || null;
+  const displayAvatar = avatarPreviewUrl || profile?.storefrontImage || '';
 
   const tabs: Array<{ id: SellerTab; label: string; icon: React.ReactNode }> = [
-    { id: 'overview', label: 'Overview & Analytics', icon: <BarChart3 className="w-4 h-4" /> },
-    { id: 'application', label: 'Verification & Docs', icon: <FileCheck className="w-4 h-4" /> },
-    { id: 'profile', label: 'Storefront Profile', icon: <Store className="w-4 h-4" /> },
+    { id: 'overview', label: 'Overview', icon: <BarChart3 className="w-4 h-4" /> },
+    { id: 'profile', label: 'Profile & Verification', icon: <Store className="w-4 h-4" /> },
     { id: 'products', label: 'Products', icon: <ShoppingBag className="w-4 h-4" /> },
     { id: 'orders', label: 'Orders & Tracking', icon: <Package className="w-4 h-4" /> },
     {
       id: 'messages',
-      label: totalUnreadMessages > 0 ? `Buyer Messages (${totalUnreadMessages})` : 'Buyer Messages',
+      label: totalUnreadMessages > 0 ? `Messages (${totalUnreadMessages})` : 'Messages',
       icon: <MessageCircle className="w-4 h-4" />,
     },
-    { id: 'payment-settings', label: 'Payment Settings', icon: <CreditCard className="w-4 h-4" /> },
-    { id: 'payments', label: 'Payment Verification', icon: <CheckCircle2 className="w-4 h-4" /> },
-    { id: 'promotions', label: 'Homepage Promotions', icon: <Megaphone className="w-4 h-4" /> },
-    { id: 'feedback', label: 'Complaints & Reviews', icon: <MessageSquare className="w-4 h-4" /> },
-    ...(settings.promoCreatorPolicy === 'seller' || settings.promoCreatorPolicy === 'both'
-      ? [{ id: 'promocodes' as SellerTab, label: 'Promo Codes', icon: <Tag className="w-4 h-4" /> }]
-      : []),
+    { id: 'payments', label: 'Payments', icon: <CreditCard className="w-4 h-4" /> },
+    { id: 'feedback', label: 'Reviews & Complaints', icon: <MessageSquare className="w-4 h-4" /> },
   ];
+
+  const allCategoryChoices = Array.from(
+    new Set([
+      ...categories.map((c) => c.name),
+      ...AIDOMART_ASSETS.categories.map((c) => c.name),
+      ...appForm.categories,
+    ])
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-8 space-y-5 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            {profile?.storefrontImage ? (
+          <div className="flex flex-wrap items-center gap-3">
+            {displayAvatar ? (
               <SafeAssetImage
-                src={profile.storefrontImage}
-                alt={profile.businessName || 'Storefront'}
+                src={displayAvatar}
+                alt={profile?.businessName || 'Storefront'}
                 compact
-                className="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0"
+                className="w-11 h-11 rounded-full object-cover border border-slate-200 shrink-0"
               />
             ) : (
-              <div className="w-9 h-9 rounded-full bg-[#0B1F3A] text-white flex items-center justify-center shrink-0">
-                <Store className="w-4 h-4" />
+              <div className="w-11 h-11 rounded-full bg-[#0B1F3A] text-white flex items-center justify-center shrink-0">
+                <Store className="w-5 h-5" />
               </div>
             )}
-            <h1 className="font-display text-2xl font-bold text-[#0B1F3A]">
-              {profile?.businessName || 'Seller Dashboard'}
-            </h1>
-            {profile?.verifiedBadge && <VerifiedBadge size="md" />}
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="font-display text-xl sm:text-2xl font-bold text-[#0B1F3A]">
+                  {profile?.businessName || 'Seller Dashboard'}
+                </h1>
+                {profile?.verifiedBadge && <VerifiedBadge size="md" />}
+              </div>
+              <p className="text-sm font-semibold text-[#F97316] mt-0.5">{greeting}</p>
+            </div>
           </div>
-          <p className="text-sm font-semibold text-[#F97316] mt-0.5">{greeting}</p>
-          <p className="text-xs text-slate-600 mt-0.5">
-            Application Status:{' '}
+          <p className="text-xs text-slate-600 mt-1.5">
+            Account Status:{' '}
             <strong className={isApproved ? 'text-emerald-700' : 'text-[#F97316]'}>
               {profile?.applicationStatus || 'Loading...'}
             </strong>
           </p>
         </div>
 
-        {isApproved && (
-          <button
-            type="button"
-            onClick={() => onNavigate(`/seller/${user.id}`)}
-            className="px-4 py-2 rounded-lg border border-[#0B1F3A] text-[#0B1F3A] hover:bg-[#0B1F3A] hover:text-white text-xs font-semibold transition-colors whitespace-nowrap self-start sm:self-auto"
-          >
-            View Public Storefront
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {!isApproved && (
+            <button
+              type="button"
+              onClick={() => setTab('profile')}
+              className="px-3.5 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold whitespace-nowrap"
+            >
+              Complete Verification &rarr;
+            </button>
+          )}
+          {isApproved && (
+            <button
+              type="button"
+              onClick={() => onNavigate(`/seller/${user.id}`)}
+              className="px-4 py-2 rounded-lg border border-[#0B1F3A] text-[#0B1F3A] hover:bg-[#0B1F3A] hover:text-white text-xs font-semibold transition-colors whitespace-nowrap"
+            >
+              View Public Storefront
+            </button>
+          )}
+        </div>
       </div>
 
       {!isApproved && profile && (
-        <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 text-xs text-slate-800 space-y-1">
-          <p className="font-bold text-[#0B1F3A]">
-            Seller Verification Status: {profile.applicationStatus}
-          </p>
+        <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 text-xs text-slate-800 space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <p className="font-bold text-[#0B1F3A]">
+              Verification Status: {profile.applicationStatus}
+            </p>
+            <button
+              type="button"
+              onClick={() => setTab('profile')}
+              className="self-start sm:self-auto font-semibold text-[#F97316] hover:underline"
+            >
+              Open Profile &amp; Verification Form &rarr;
+            </button>
+          </div>
           <p>
-            Only administrator-approved sellers can publish products to the Shop. You may complete your application, upload private verification documents, and configure your manual payment settings while awaiting approval.
+            Only administrator-approved sellers can publish products to the Shop.{' '}
+            {missingRequiredFields.length > 0
+              ? `Please fill in these required fields to get approved: ${missingRequiredFields.join(', ')}.`
+              : 'All required business fields are filled in! Submit or save your profile while awaiting admin approval.'}
           </p>
           {profile.adminFeedback && (
             <p className="pt-1 font-medium text-red-700">
@@ -594,13 +789,15 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
       )}
 
       {statusMsg && (
-        <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800">
-          {statusMsg}
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+          <span>{statusMsg}</span>
         </div>
       )}
       {errorMsg && (
-        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
-          {errorMsg}
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
+          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+          <span>{errorMsg}</span>
         </div>
       )}
 
@@ -610,7 +807,7 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
+            className={`inline-flex items-center gap-1.5 min-h-[38px] px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
               tab === t.id
                 ? 'bg-[#0B1F3A] text-white'
                 : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -622,7 +819,7 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
         ))}
       </div>
 
-      {/* OVERVIEW & GENUINE ANALYTICS */}
+      {/* OVERVIEW */}
       {tab === 'overview' && analytics && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -633,7 +830,7 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
               </p>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-5">
-              <p className="text-[11px] sm:text-xs text-slate-500">Total Orders Received</p>
+              <p className="text-[11px] sm:text-xs text-slate-500">Orders Received</p>
               <p className="text-lg sm:text-2xl font-mono font-bold text-[#0B1F3A] tabular-nums mt-1">
                 {analytics.totalOrders}
               </p>
@@ -645,7 +842,7 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
               </p>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-5">
-              <p className="text-[11px] sm:text-xs text-slate-500">Confirmed Sales Total</p>
+              <p className="text-[11px] sm:text-xs text-slate-500">Confirmed Sales</p>
               <p className="text-lg sm:text-2xl font-mono font-bold text-emerald-700 tabular-nums mt-1 break-words">
                 GHS {Number(analytics.confirmedSalesTotal || 0).toFixed(2)}
               </p>
@@ -653,17 +850,20 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-3">
-            <h2 className="font-display text-base font-bold text-[#0B1F3A]">
-              Order Status Breakdown (Live Database Totals)
-            </h2>
+            <h2 className="font-display text-base font-bold text-[#0B1F3A]">Order Summary</h2>
             {analytics.ordersByStatus?.length === 0 ? (
-              <p className="text-sm text-slate-500">No order records yet.</p>
+              <p className="text-sm text-slate-500">No orders received yet.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {analytics.ordersByStatus.map((row: any) => (
-                  <div key={row.status} className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex justify-between text-xs">
+                  <div
+                    key={row.status}
+                    className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex justify-between text-xs"
+                  >
                     <span className="text-slate-700">{row.status}</span>
-                    <span className="font-mono font-bold tabular-nums text-[#0B1F3A]">{row.count}</span>
+                    <span className="font-mono font-bold tabular-nums text-[#0B1F3A]">
+                      {row.count}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -672,344 +872,416 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
         </div>
       )}
 
-      {/* APPLICATION & PRIVATE VERIFICATION DOCS */}
-      {tab === 'application' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-7 bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4">
-            <h2 className="font-display text-lg font-bold text-[#0B1F3A]">
-              Seller Verification Application
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Legal Name</label>
-                <input
-                  type="text"
-                  value={appForm.legalName}
-                  onChange={(e) => setAppForm({ ...appForm, legalName: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Business Name</label>
-                <input
-                  type="text"
-                  value={appForm.businessName}
-                  onChange={(e) => setAppForm({ ...appForm, businessName: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Telephone</label>
-                <PhoneInput
-                  value={appForm.phone}
-                  onChange={(val) => setAppForm({ ...appForm, phone: val })}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">City / Region</label>
-                <input
-                  type="text"
-                  value={appForm.locationCity}
-                  onChange={(e) => setAppForm({ ...appForm, locationCity: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Physical Business Address</label>
-              <input
-                type="text"
-                value={appForm.physicalAddress}
-                onChange={(e) => setAppForm({ ...appForm, physicalAddress: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Business Description</label>
-              <textarea
-                rows={3}
-                value={appForm.description}
-                onChange={(e) => setAppForm({ ...appForm, description: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Categories</label>
-              <div className="flex flex-wrap gap-2">
-                {Array.from(
-                  new Set([
-                    ...categories.map((c) => c.name),
-                    ...AIDOMART_ASSETS.categories.map((c) => c.name),
-                    ...appForm.categories,
-                  ])
-                ).map((catName) => {
-                  const selected = appForm.categories.includes(catName);
-                  return (
-                    <button
-                      key={catName}
-                      type="button"
-                      onClick={() =>
-                        setAppForm((f) => ({
-                          ...f,
-                          categories: selected
-                            ? f.categories.filter((c) => c !== catName)
-                            : [...f.categories, catName],
-                        }))
-                      }
-                      className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold border ${
-                        selected
-                          ? 'bg-[#0B1F3A] text-white border-[#0B1F3A]'
-                          : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
-                      }`}
-                    >
-                      {catName}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => handleSaveApplication(true)}
-                className="min-h-[42px] px-4 py-2.5 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold"
-              >
-                {isApproved ? 'Save Changes' : 'Save & Submit for Admin Review'}
-              </button>
-              {!isApproved && (
-                <button
-                  type="button"
-                  onClick={() => handleSaveApplication(false)}
-                  className="min-h-[42px] px-4 py-2.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700"
-                >
-                  Save Draft
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="lg:col-span-5 space-y-5 sm:space-y-6">
-            <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4">
-              <h3 className="font-display text-base font-bold text-[#0B1F3A]">
-                Private Verification Documents
-              </h3>
-              <p className="text-xs text-slate-600">
-                Upload business registration, ID, or supporting documents (JPG, PNG, WebP, PDF). Stored privately for administrator inspection only.
-              </p>
-              <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0B1F3A] text-white text-xs font-semibold cursor-pointer">
-                <Upload className="w-4 h-4" />
-                <span>Upload Supporting Documents</span>
-                <input
-                  type="file"
-                  multiple
-                  accept=".jpg,.jpeg,.png,.webp,.pdf"
-                  onChange={handleDocUpload}
-                  className="hidden"
-                />
-              </label>
-
-              {documents.length > 0 && (
-                <ul className="divide-y divide-slate-100 border border-slate-200 rounded-lg text-xs">
-                  {documents.map((doc) => (
-                    <li key={doc.id} className="px-3 py-2 flex justify-between gap-2">
-                      <span className="truncate font-medium text-slate-800">{doc.originalName}</span>
-                      <span className="text-slate-400 shrink-0 tabular-nums">
-                        {Math.round(doc.sizeBytes / 1024)} KB
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-3">
-              <h3 className="font-display text-base font-bold text-[#0B1F3A]">
-                Verification & Inspection Audit Trail
-              </h3>
-              <p className="text-xs text-slate-600">
-                Physical Inspection Conducted:{' '}
-                <strong>{profile?.physicalInspectionConducted ? `Yes (${profile.physicalInspectionDate})` : 'No'}</strong>
-              </p>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {auditLogs.map((log) => (
-                  <div key={log.id} className="p-2.5 rounded bg-slate-50 border border-slate-200 text-xs">
-                    <p className="font-semibold text-[#0B1F3A]">{log.action}</p>
-                    {log.notes && <p className="text-slate-600 mt-0.5">{log.notes}</p>}
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      By {log.actorName} · {new Date(log.createdAt).toLocaleString()}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* STOREFRONT PROFILE */}
+      {/* UNIFIED BUSINESS PROFILE & ADMIN VERIFICATION */}
       {tab === 'profile' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <form onSubmit={handleSaveProfile} className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4">
-            <h2 className="font-display text-lg font-bold text-[#0B1F3A]">
-              Public Storefront Information
-            </h2>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Business Name</label>
-              <input
-                type="text"
-                required
-                value={appForm.businessName}
-                onChange={(e) => setAppForm({ ...appForm, businessName: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
+        <div className="space-y-6">
+          {/* Admin Approval Readiness Checklist */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-display text-base font-bold text-[#0B1F3A]">
+                Admin Approval Readiness Checklist
+              </h2>
+              <span
+                className={`px-2.5 py-1 rounded-md text-xs font-bold ${
+                  missingRequiredFields.length === 0
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-orange-50 text-[#F97316] border border-orange-200'
+                }`}
+              >
+                {requiredApprovalChecks.filter((c) => c.done).length} / {requiredApprovalChecks.length}{' '}
+                Required Details Complete
+              </span>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Public Description</label>
-              <textarea
-                rows={3}
-                value={appForm.description}
-                onChange={(e) => setAppForm({ ...appForm, description: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Contact Phone</label>
-                <input
-                  type="text"
-                  value={appForm.phone}
-                  onChange={(e) => setAppForm({ ...appForm, phone: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">City / Location</label>
-                <input
-                  type="text"
-                  value={appForm.locationCity}
-                  onChange={(e) => setAppForm({ ...appForm, locationCity: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Delivery & Pickup Arrangements
-              </label>
-              <input
-                type="text"
-                value={appForm.deliveryPickupNotes}
-                onChange={(e) => setAppForm({ ...appForm, deliveryPickupNotes: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                What You Sell (Categories Shown on Your Profile)
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {Array.from(
-                  new Set([
-                    ...categories.map((c) => c.name),
-                    ...AIDOMART_ASSETS.categories.map((c) => c.name),
-                    ...appForm.categories,
-                  ])
-                ).map((catName) => {
-                  const selected = appForm.categories.includes(catName);
-                  return (
-                    <button
-                      key={catName}
-                      type="button"
-                      onClick={() =>
-                        setAppForm((f) => ({
-                          ...f,
-                          categories: selected
-                            ? f.categories.filter((c) => c !== catName)
-                            : [...f.categories, catName],
-                        }))
-                      }
-                      className={`min-h-[34px] px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
-                        selected
-                          ? 'bg-[#0B1F3A] text-white border-[#0B1F3A]'
-                          : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
-                      }`}
-                    >
-                      {catName}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <button
-              type="submit"
-              className="px-4 py-2.5 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] text-white text-xs font-semibold"
-            >
-              Update Storefront Profile
-            </button>
-          </form>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-5">
-            <h2 className="font-display text-lg font-bold text-[#0B1F3A]">
-              Storefront & Business Photos
-            </h2>
-            <div className="flex items-center gap-3.5">
-              {profile?.storefrontImage ? (
-                <SafeAssetImage
-                  src={profile.storefrontImage}
-                  alt="Storefront"
-                  compact
-                  className="w-12 h-12 rounded-full object-cover border border-slate-200 shrink-0"
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              {[...requiredApprovalChecks, ...recommendedChecks].map((item) => (
+                <div
+                  key={item.label}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
+                    item.done
+                      ? 'bg-emerald-50/50 border-emerald-200 text-emerald-900'
+                      : 'bg-slate-50 border-slate-200 text-slate-600'
+                  }`}
+                >
+                  {item.done ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-[#F97316] shrink-0" />
+                  )}
+                  <span>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Business Information & Verification Form */}
+            <form
+              onSubmit={handleSaveProfile}
+              className="lg:col-span-7 bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4"
+            >
+              <div>
+                <h2 className="font-display text-lg font-bold text-[#0B1F3A]">
+                  Business Profile &amp; Verification Information
+                </h2>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Keep your contact and business details accurate. Complete all required (*) fields to submit for Admin approval.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Full Legal Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={appForm.legalName}
+                    onChange={(e) => setAppForm({ ...appForm, legalName: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Business / Storefront Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={appForm.businessName}
+                    onChange={(e) => setAppForm({ ...appForm, businessName: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Telephone / WhatsApp Number *
+                  </label>
+                  <PhoneInput
+                    required
+                    value={appForm.phone}
+                    onChange={(val) => setAppForm({ ...appForm, phone: val })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    City / Region *
+                  </label>
+                  <input
+                    type="text"
+                    value={appForm.locationCity}
+                    onChange={(e) => setAppForm({ ...appForm, locationCity: e.target.value })}
+                    placeholder="e.g. Accra, Kumasi, Takoradi"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Physical Business Address *
+                </label>
+                <input
+                  type="text"
+                  value={appForm.physicalAddress}
+                  onChange={(e) => setAppForm({ ...appForm, physicalAddress: e.target.value })}
+                  placeholder="Street address, shop number, or landmark..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                 />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
-                  <Store className="w-5 h-5" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Business Description *
+                </label>
+                <textarea
+                  rows={3}
+                  value={appForm.description}
+                  onChange={(e) => setAppForm({ ...appForm, description: e.target.value })}
+                  placeholder="Describe your products, brands, and customer guarantee..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Delivery &amp; Pickup Arrangements
+                </label>
+                <input
+                  type="text"
+                  value={appForm.deliveryPickupNotes}
+                  onChange={(e) => setAppForm({ ...appForm, deliveryPickupNotes: e.target.value })}
+                  placeholder="e.g. Same-day courier in Accra or storefront pickup"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Product Categories
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {allCategoryChoices.map((catName) => {
+                    const selected = appForm.categories.includes(catName);
+                    return (
+                      <button
+                        key={catName}
+                        type="button"
+                        onClick={() =>
+                          setAppForm((f) => ({
+                            ...f,
+                            categories: selected
+                              ? f.categories.filter((c) => c !== catName)
+                              : [...f.categories, catName],
+                          }))
+                        }
+                        className={`min-h-[34px] px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+                          selected
+                            ? 'bg-[#0B1F3A] text-white border-[#0B1F3A]'
+                            : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
+                        }`}
+                      >
+                        {catName}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-2.5 flex gap-2">
+                  <input
+                    type="text"
+                    value={customCategoryInput}
+                    onChange={(e) => setCustomCategoryInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const trimmed = customCategoryInput.trim();
+                        if (trimmed && !appForm.categories.includes(trimmed)) {
+                          setAppForm((f) => ({ ...f, categories: [...f.categories, trimmed] }));
+                        }
+                        setCustomCategoryInput('');
+                      }
+                    }}
+                    placeholder="Add custom category..."
+                    className="flex-1 min-w-0 px-3 py-1.5 border border-slate-300 rounded-lg text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const trimmed = customCategoryInput.trim();
+                      if (trimmed && !appForm.categories.includes(trimmed)) {
+                        setAppForm((f) => ({ ...f, categories: [...f.categories, trimmed] }));
+                      }
+                      setCustomCategoryInput('');
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-[#0B1F3A] shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add</span>
+                  </button>
+                </div>
+              </div>
+
+              {profileFeedback && (
+                <div
+                  className={`flex items-start gap-2 p-3 rounded-lg border text-xs font-semibold ${
+                    profileFeedback.ok
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-red-50 border-red-200 text-red-700'
+                  }`}
+                >
+                  {profileFeedback.ok ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  )}
+                  <span>{profileFeedback.text}</span>
                 </div>
               )}
-              <div className="space-y-1">
-                <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold cursor-pointer">
+
+              <div className="flex flex-wrap gap-2.5 pt-1">
+                <button
+                  type="submit"
+                  disabled={savingProfile || savingApp || savingDraft}
+                  className="min-h-[42px] px-4 py-2.5 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] disabled:opacity-60 text-white text-xs font-semibold"
+                >
+                  {savingProfile ? 'Updating Profile...' : 'Update Business Profile'}
+                </button>
+                {!isApproved && (
+                  <>
+                    <button
+                      type="button"
+                      disabled={savingApp || savingProfile || savingDraft}
+                      onClick={() => handleSaveApplication(true)}
+                      className="min-h-[42px] px-4 py-2.5 rounded-lg bg-[#F97316] hover:bg-[#EA580C] disabled:opacity-60 text-white text-xs font-semibold"
+                    >
+                      {savingApp ? 'Submitting...' : 'Save & Submit for Admin Approval'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={savingDraft || savingProfile || savingApp}
+                      onClick={() => handleSaveApplication(false)}
+                      className="min-h-[42px] px-4 py-2.5 rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-60 text-xs font-semibold text-slate-700"
+                    >
+                      {savingDraft ? 'Saving Draft...' : 'Save Draft'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </form>
+
+            {/* Right Column: Profile Picture, Gallery Photos & Verification Docs */}
+            <div className="lg:col-span-5 space-y-5">
+              {/* Storefront Profile Picture & Gallery */}
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-5">
+                <div>
+                  <h2 className="font-display text-base font-bold text-[#0B1F3A]">
+                    Storefront Profile Picture
+                  </h2>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Updates your seller avatar across the marketplace, navigation bar, and admin panel immediately.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  {displayAvatar ? (
+                    <SafeAssetImage
+                      src={displayAvatar}
+                      alt={profile?.businessName || 'Storefront'}
+                      compact
+                      className="w-20 h-20 rounded-full object-cover border-2 border-[#0B1F3A]/15 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                      <Store className="w-7 h-7" />
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5 min-w-0">
+                    <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold cursor-pointer">
+                      <Upload className="w-4 h-4 shrink-0" />
+                      <span>
+                        {uploadingAvatar
+                          ? 'Uploading Picture...'
+                          : displayAvatar
+                            ? 'Change Profile Picture'
+                            : 'Upload Profile Picture'}
+                      </span>
+                      <input
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.webp,.gif"
+                        disabled={uploadingAvatar}
+                        onChange={(e) => handlePhotoUpload(e, 'storefront')}
+                        className="hidden"
+                      />
+                    </label>
+                    <p className="text-[11px] text-slate-500">JPG, PNG, or WebP (up to 10 MB).</p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-200 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-[#0B1F3A]">Business Showcase Photos</span>
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{uploadingGallery ? 'Uploading...' : 'Add Photos'}</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept=".jpg,.jpeg,.png,.webp,.gif"
+                        disabled={uploadingGallery}
+                        onChange={(e) => handlePhotoUpload(e, 'business')}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                  {profile?.businessPhotos && profile.businessPhotos.length > 0 ? (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {profile.businessPhotos.map((p) => (
+                        <div key={p} className="relative group">
+                          <SafeAssetImage
+                            src={p}
+                            alt="Business"
+                            className="aspect-square w-full rounded-lg object-cover border border-slate-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBusinessPhoto(p)}
+                            aria-label="Remove business photo"
+                            className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600/90 hover:bg-red-700 text-white flex items-center justify-center shadow-sm"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400">No business showcase photos uploaded yet.</p>
+                  )}
+                </div>
+
+                {photoFeedback && (
+                  <p
+                    className={`text-xs font-semibold p-2.5 rounded-lg border ${
+                      photoFeedback.ok
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                        : 'bg-red-50 border-red-200 text-red-700'
+                    }`}
+                  >
+                    {photoFeedback.text}
+                  </p>
+                )}
+              </div>
+
+              {/* Private Verification Documents */}
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4">
+                <div>
+                  <h3 className="font-display text-base font-bold text-[#0B1F3A]">
+                    Private Verification Documents
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Upload business registration, national ID, or supporting documents (JPG, PNG, WebP, PDF up to 10 MB). Stored privately for Admin inspection only.
+                  </p>
+                </div>
+
+                <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] text-white text-xs font-semibold cursor-pointer">
                   <Upload className="w-4 h-4" />
-                  <span>Upload Storefront Icon</span>
+                  <span>{uploadingDocs ? 'Uploading Documents...' : 'Upload Verification Documents'}</span>
                   <input
                     type="file"
-                    accept=".jpg,.jpeg,.png,.webp"
-                    onChange={(e) => handlePhotoUpload(e, 'storefront')}
+                    multiple
+                    accept=".jpg,.jpeg,.png,.webp,.pdf"
+                    disabled={uploadingDocs}
+                    onChange={handleDocUpload}
                     className="hidden"
                   />
                 </label>
-                <p className="text-[11px] text-slate-500">
-                  Displayed as a compact circular badge beside your shop name in the marketplace.
-                </p>
-              </div>
-            </div>
 
-            <div className="pt-4 border-t border-slate-200 space-y-3">
-              <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 cursor-pointer">
-                <Upload className="w-4 h-4" />
-                <span>Add Business Photos</span>
-                <input
-                  type="file"
-                  multiple
-                  accept=".jpg,.jpeg,.png,.webp"
-                  onChange={(e) => handlePhotoUpload(e, 'business')}
-                  className="hidden"
-                />
-              </label>
-              {profile?.businessPhotos && profile.businessPhotos.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {profile.businessPhotos.map((p) => (
-                    <SafeAssetImage
-                      key={p}
-                      src={p}
-                      alt="Business"
-                      className="aspect-square rounded-lg object-cover border border-slate-200"
-                    />
-                  ))}
-                </div>
-              )}
+                {docFeedback && (
+                  <p
+                    className={`text-xs font-semibold p-2.5 rounded-lg border ${
+                      docFeedback.ok
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                        : 'bg-red-50 border-red-200 text-red-700'
+                    }`}
+                  >
+                    {docFeedback.text}
+                  </p>
+                )}
+
+                {documents.length > 0 && (
+                  <ul className="divide-y divide-slate-100 border border-slate-200 rounded-lg text-xs">
+                    {documents.map((doc) => (
+                      <li key={doc.id} className="px-3 py-2 flex justify-between gap-2">
+                        <span className="truncate font-medium text-slate-800">{doc.originalName}</span>
+                        <span className="text-slate-400 shrink-0 tabular-nums">
+                          {Math.round(doc.sizeBytes / 1024)} KB
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1023,9 +1295,18 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
               {editingProductId ? 'Edit Product' : 'Add New Product'}
             </h2>
             {!isApproved ? (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 p-3 rounded-lg">
-                Your seller account must be Approved by an administrator before you can publish products.
-              </p>
+              <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-3.5 rounded-lg space-y-2">
+                <p>
+                  Your seller account must be Approved by an administrator before you can publish products.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setTab('profile')}
+                  className="font-semibold underline text-[#0B1F3A]"
+                >
+                  Complete Profile &amp; Verification &rarr;
+                </button>
+              </div>
             ) : (
               <form onSubmit={handleSaveProduct} className="space-y-3">
                 <div>
@@ -1105,11 +1386,12 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Product Images</label>
                   <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 cursor-pointer">
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Upload Images</span>
+                    <span>{uploadingProductImages ? 'Uploading...' : 'Upload Images'}</span>
                     <input
                       type="file"
                       multiple
-                      accept=".jpg,.jpeg,.png,.webp"
+                      accept=".jpg,.jpeg,.png,.webp,.gif"
+                      disabled={uploadingProductImages}
                       onChange={handleProductImages}
                       className="hidden"
                     />
@@ -1133,7 +1415,7 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                             }
                             className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-white text-[10px]"
                           >
-                            ×
+                            &times;
                           </button>
                         </div>
                       ))}
@@ -1200,7 +1482,10 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
             ) : (
               <div className="divide-y divide-slate-100">
                 {products.map((p) => (
-                  <div key={p.id} className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div
+                    key={p.id}
+                    className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
                     <div className="flex items-center gap-3 min-w-0">
                       <SafeAssetImage
                         src={p.images[0] || ''}
@@ -1298,10 +1583,10 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
           <div className="px-4 sm:px-6 py-4 border-b border-slate-200">
             <h2 className="font-display text-base font-bold text-[#0B1F3A]">
-              Seller Orders & Buyer Tracking ({orders.length})
+              Seller Orders &amp; Tracking ({orders.length})
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Update order workflow or post live tracking milestones so buyers know how far their order has reached.
+              Update order workflow or post live tracking milestones so buyers can track delivery progress.
             </p>
           </div>
           {orders.length === 0 ? (
@@ -1333,7 +1618,7 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                     <div className="text-xs text-slate-700 space-y-1">
                       {ord.items.map((it) => (
                         <div key={it.id}>
-                          • {it.productTitle} {it.selectedVariation ? `(${it.selectedVariation})` : ''} ×{' '}
+                          • {it.productTitle} {it.selectedVariation ? `(${it.selectedVariation})` : ''} &times;{' '}
                           {it.quantity}
                         </div>
                       ))}
@@ -1541,7 +1826,7 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
             </div>
             {conversations.length === 0 ? (
               <div className="p-6 text-center text-xs text-slate-500">
-                No messages from buyers yet. When buyers message you from your storefront or product pages, conversations appear here.
+                No messages from buyers yet. When buyers contact you from your storefront or product pages, conversations appear here.
               </div>
             ) : (
               <div className="divide-y divide-slate-100 max-h-[520px] overflow-y-auto">
@@ -1665,15 +1950,15 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                     value={buyerReplyDraft}
                     onChange={(e) => setBuyerReplyDraft(e.target.value)}
                     placeholder={`Reply to ${activeBuyerConversation.buyerName}...`}
-                    className="flex-1 min-h-[42px] px-3.5 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm"
+                    className="flex-1 min-w-0 min-h-[42px] px-3.5 py-2 border border-slate-300 rounded-lg text-base sm:text-sm"
                   />
                   <button
                     type="submit"
                     disabled={sendingBuyerReply}
-                    className="inline-flex items-center gap-1.5 min-h-[42px] px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold disabled:opacity-60"
+                    className="inline-flex items-center gap-1.5 min-h-[42px] px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold disabled:opacity-60 shrink-0"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>Reply</span>
+                    <span>{sendingBuyerReply ? 'Sending...' : 'Reply'}</span>
                   </button>
                 </form>
               </>
@@ -1686,344 +1971,258 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
         </div>
       )}
 
-      {/* PAYMENT SETTINGS */}
-      {tab === 'payment-settings' && (
-        <form onSubmit={handleSavePaymentSettings} className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-6">
-          <div>
-            <h2 className="font-display text-lg font-bold text-[#0B1F3A]">
-              Manual Payment Receiving Settings
-            </h2>
-            <p className="text-xs text-slate-600 mt-1">
-              Configure your Mobile Money and/or Bank Transfer details. Only enabled methods are displayed to buyers on their order payment page.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="p-4 border border-slate-200 rounded-xl space-y-3">
-              <label className="flex items-center gap-2 font-display text-sm font-bold text-[#0B1F3A]">
-                <input
-                  type="checkbox"
-                  checked={payForm.momoEnabled}
-                  onChange={(e) => setPayForm({ ...payForm, momoEnabled: e.target.checked })}
-                />
-                <span>Enable Mobile Money</span>
-              </label>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Provider</label>
-                <select
-                  value={payForm.momoProvider}
-                  onChange={(e) => setPayForm({ ...payForm, momoProvider: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                >
-                  <option value="MTN Mobile Money">MTN Mobile Money</option>
-                  <option value="Telecel Cash">Telecel Cash</option>
-                  <option value="AT Money">AT Money</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Registered Account Holder Name
-                </label>
-                <input
-                  type="text"
-                  value={payForm.momoAccountName}
-                  onChange={(e) => setPayForm({ ...payForm, momoAccountName: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Mobile Money Number
-                </label>
-                <input
-                  type="tel"
-                  value={payForm.momoNumber}
-                  onChange={(e) => setPayForm({ ...payForm, momoNumber: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Instructions</label>
-                <input
-                  type="text"
-                  value={payForm.momoInstructions}
-                  onChange={(e) => setPayForm({ ...payForm, momoInstructions: e.target.value })}
-                  placeholder="Include your Order Reference in the MoMo reference field"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-              </div>
+      {/* UNIFIED PAYMENTS: RECEIVING SETTINGS + ORDER VERIFICATION */}
+      {tab === 'payments' && (
+        <div className="space-y-6">
+          <form
+            onSubmit={handleSavePaymentSettings}
+            className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-5"
+          >
+            <div>
+              <h2 className="font-display text-lg font-bold text-[#0B1F3A]">
+                Payment Receiving Settings
+              </h2>
+              <p className="text-xs text-slate-600 mt-1">
+                Configure your Mobile Money and/or Bank Transfer accounts. Only enabled methods are displayed to buyers during checkout.
+              </p>
             </div>
 
-            <div className="p-4 border border-slate-200 rounded-xl space-y-3">
-              <label className="flex items-center gap-2 font-display text-sm font-bold text-[#0B1F3A]">
-                <input
-                  type="checkbox"
-                  checked={payForm.bankEnabled}
-                  onChange={(e) => setPayForm({ ...payForm, bankEnabled: e.target.checked })}
-                />
-                <span>Enable Bank Transfer</span>
-              </label>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Bank Name</label>
-                <input
-                  type="text"
-                  value={payForm.bankName}
-                  onChange={(e) => setPayForm({ ...payForm, bankName: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Full Account Holder Name
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <div className="p-4 border border-slate-200 rounded-xl space-y-3">
+                <label className="flex items-center gap-2 font-display text-sm font-bold text-[#0B1F3A] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={payForm.momoEnabled}
+                    onChange={(e) => setPayForm({ ...payForm, momoEnabled: e.target.checked })}
+                  />
+                  <span>Enable Mobile Money</span>
                 </label>
-                <input
-                  type="text"
-                  value={payForm.bankAccountName}
-                  onChange={(e) => setPayForm({ ...payForm, bankAccountName: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Account Number</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Provider</label>
+                  <select
+                    value={payForm.momoProvider}
+                    onChange={(e) => setPayForm({ ...payForm, momoProvider: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  >
+                    <option value="MTN Mobile Money">MTN Mobile Money</option>
+                    <option value="Telecel Cash">Telecel Cash</option>
+                    <option value="AT Money">AT Money</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Registered Account Holder Name
+                  </label>
                   <input
                     type="text"
-                    value={payForm.bankAccountNumber}
-                    onChange={(e) => setPayForm({ ...payForm, bankAccountNumber: e.target.value })}
+                    value={payForm.momoAccountName}
+                    onChange={(e) => setPayForm({ ...payForm, momoAccountName: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Mobile Money Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={payForm.momoNumber}
+                    onChange={(e) => setPayForm({ ...payForm, momoNumber: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Branch</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Instructions</label>
                   <input
                     type="text"
-                    value={payForm.bankBranch}
-                    onChange={(e) => setPayForm({ ...payForm, bankBranch: e.target.value })}
+                    value={payForm.momoInstructions}
+                    onChange={(e) => setPayForm({ ...payForm, momoInstructions: e.target.value })}
+                    placeholder="Include your Order Reference in the MoMo reference field"
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
                   />
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Instructions</label>
-                <input
-                  type="text"
-                  value={payForm.bankInstructions}
-                  onChange={(e) => setPayForm({ ...payForm, bankInstructions: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-              </div>
-            </div>
-          </div>
 
-          <button
-            type="submit"
-            className="px-5 py-2.5 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] text-white text-xs font-semibold"
-          >
-            Save Payment Receiving Details
-          </button>
-        </form>
-      )}
-
-      {/* MANUAL PAYMENT VERIFICATION */}
-      {tab === 'payments' && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200">
-            <h2 className="font-display text-base font-bold text-[#0B1F3A]">
-              Manual Payment Verification
-            </h2>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Always check your actual Mobile Money wallet or bank statement before confirming payment received.
-            </p>
-          </div>
-          {orders.length === 0 ? (
-            <div className="p-8 text-center text-sm text-slate-500">No payment records yet.</div>
-          ) : (
-            <div className="divide-y divide-slate-200">
-              {orders.map((ord) => (
-                <div key={ord.id} className="p-4 sm:p-5 space-y-3 text-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <span className="font-mono text-sm font-bold text-[#0B1F3A]">
-                        {ord.orderReference}
-                      </span>
-                      <span className="text-slate-500 ml-2">· Buyer: {ord.buyerName}</span>
-                    </div>
-                    <span className="font-semibold text-[#F97316]">{ord.payment?.status}</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
-                    <div>
-                      <span className="text-slate-500 block">Amount Due</span>
-                      <strong className="font-mono tabular-nums">GHS {ord.totalAmount.toFixed(2)}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block">Reported Paid</span>
-                      <strong className="font-mono tabular-nums">
-                        {ord.payment?.amountReported !== null && ord.payment?.amountReported !== undefined
-                          ? `GHS ${ord.payment.amountReported.toFixed(2)}`
-                          : '—'}
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block">Method</span>
-                      <strong>{ord.payment?.paymentMethod || '—'}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block">Tx Ref</span>
-                      <strong className="font-mono">{ord.payment?.transactionReference || '—'}</strong>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-2">
+              <div className="p-4 border border-slate-200 rounded-xl space-y-3">
+                <label className="flex items-center gap-2 font-display text-sm font-bold text-[#0B1F3A] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={payForm.bankEnabled}
+                    onChange={(e) => setPayForm({ ...payForm, bankEnabled: e.target.checked })}
+                  />
+                  <span>Enable Bank Transfer</span>
+                </label>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Bank Name</label>
+                  <input
+                    type="text"
+                    value={payForm.bankName}
+                    onChange={(e) => setPayForm({ ...payForm, bankName: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Full Account Holder Name
+                  </label>
+                  <input
+                    type="text"
+                    value={payForm.bankAccountName}
+                    onChange={(e) => setPayForm({ ...payForm, bankAccountName: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Account Number</label>
                     <input
                       type="text"
-                      value={verifyNotes[ord.id] || ''}
-                      onChange={(e) => setVerifyNotes({ ...verifyNotes, [ord.id]: e.target.value })}
-                      placeholder="Verification notes (optional)..."
-                      className="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-xs"
+                      value={payForm.bankAccountNumber}
+                      onChange={(e) => setPayForm({ ...payForm, bankAccountNumber: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
                     />
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleVerifyPayment(ord.id, 'confirm', ord.totalAmount)}
-                        className="min-h-[38px] px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-semibold"
-                      >
-                        Confirm Payment Received
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleVerifyPayment(ord.id, 'not_received', ord.totalAmount)}
-                        className="min-h-[38px] px-2.5 py-1.5 rounded-lg border border-red-300 text-red-700 font-semibold"
-                      >
-                        Not Received
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleVerifyPayment(ord.id, 'amount_mismatch', ord.totalAmount)}
-                        className="min-h-[38px] px-2.5 py-1.5 rounded-lg border border-amber-300 text-amber-800 font-semibold"
-                      >
-                        Amount Mismatch
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleVerifyPayment(ord.id, 'under_review', ord.totalAmount)}
-                        className="min-h-[38px] px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-semibold"
-                      >
-                        Flag / Review
-                      </button>
-                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Branch</label>
+                    <input
+                      type="text"
+                      value={payForm.bankBranch}
+                      onChange={(e) => setPayForm({ ...payForm, bankBranch: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    />
                   </div>
                 </div>
-              ))}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Instructions</label>
+                  <input
+                    type="text"
+                    value={payForm.bankInstructions}
+                    onChange={(e) => setPayForm({ ...payForm, bankInstructions: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-      )}
 
-      {/* HOMEPAGE PROMOTIONS */}
-      {tab === 'promotions' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              try {
-                const res = await apiRequest<{ message: string }>('/api/seller/promotions', {
-                  method: 'POST',
-                  body: {
-                    ...hpPromoForm,
-                    productId: hpPromoForm.productId ? Number(hpPromoForm.productId) : null,
-                    submitForReview: true,
-                  },
-                });
-                notifyResult(res.message);
-                setHpPromoForm({ title: '', description: '', productId: '' });
-                await loadAll();
-              } catch (err: any) {
-                notifyResult(err.message, true);
-              }
-            }}
-            className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4"
-          >
-            <h2 className="font-display text-lg font-bold text-[#0B1F3A]">
-              Submit Homepage Promotional Showcase
-            </h2>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Promotion Title *</label>
-              <input
-                type="text"
-                required
-                value={hpPromoForm.title}
-                onChange={(e) => setHpPromoForm({ ...hpPromoForm, title: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Featured Published Product</label>
-              <select
-                value={hpPromoForm.productId}
-                onChange={(e) => setHpPromoForm({ ...hpPromoForm, productId: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+            {paymentFeedback && (
+              <div
+                className={`p-3 rounded-lg border text-xs font-semibold ${
+                  paymentFeedback.ok
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-red-50 border-red-200 text-red-700'
+                }`}
               >
-                <option value="">General Storefront Showcase</option>
-                {products
-                  .filter((p) => p.published)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title} (GHS {p.price.toFixed(2)})
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Description *</label>
-              <textarea
-                rows={3}
-                required
-                value={hpPromoForm.description}
-                onChange={(e) => setHpPromoForm({ ...hpPromoForm, description: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-            </div>
+                {paymentFeedback.text}
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={!isApproved}
-              className="min-h-[42px] px-4 py-2.5 rounded-lg bg-[#0B1F3A] disabled:bg-slate-300 text-white text-xs font-semibold"
+              disabled={savingPaymentSettings}
+              className="min-h-[42px] px-5 py-2.5 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] disabled:opacity-60 text-white text-xs font-semibold"
             >
-              Submit for Admin Approval
+              {savingPaymentSettings ? 'Saving Payment Settings...' : 'Save Payment Receiving Details'}
             </button>
           </form>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-3">
-            <h2 className="font-display text-lg font-bold text-[#0B1F3A]">
-              Your Promotions ({sellerPromos.length})
-            </h2>
-            {sellerPromos.length === 0 ? (
-              <p className="text-sm text-slate-500">No promotions submitted yet.</p>
+          {/* Order Payment Verification */}
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200">
+              <h2 className="font-display text-base font-bold text-[#0B1F3A]">
+                Customer Payment Verification ({orders.length})
+              </h2>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Always verify incoming transfers in your Mobile Money wallet or bank statement before confirming payment.
+              </p>
+            </div>
+            {orders.length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-500">No payment records yet.</div>
             ) : (
-              sellerPromos.map((pr) => (
-                <div key={pr.id} className="p-3.5 border border-slate-200 rounded-lg text-xs space-y-1.5">
-                  <div className="flex justify-between">
-                    <strong className="text-sm text-[#0B1F3A]">{pr.title}</strong>
-                    <span className="font-semibold text-[#F97316]">{pr.status}</span>
-                  </div>
-                  <p className="text-slate-600">{pr.description}</p>
-                  {pr.status === 'Published' && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await apiRequest(`/api/seller/promotions/${pr.id}`, {
-                          method: 'PATCH',
-                          body: { action: 'unpublish' },
-                        });
-                        await loadAll();
-                      }}
-                      className="text-xs font-semibold text-slate-600 underline"
-                    >
-                      Unpublish
-                    </button>
-                  )}
-                </div>
-              ))
+              <div className="divide-y divide-slate-200">
+                {orders.map((ord) => {
+                  const isBusy = verifyingOrderId === ord.id;
+                  return (
+                    <div key={ord.id} className="p-4 sm:p-5 space-y-3 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <span className="font-mono text-sm font-bold text-[#0B1F3A]">
+                            {ord.orderReference}
+                          </span>
+                          <span className="text-slate-500 ml-2">· Buyer: {ord.buyerName}</span>
+                        </div>
+                        <span className="font-semibold text-[#F97316]">{ord.payment?.status}</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <div>
+                          <span className="text-slate-500 block">Amount Due</span>
+                          <strong className="font-mono tabular-nums">GHS {ord.totalAmount.toFixed(2)}</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">Reported Paid</span>
+                          <strong className="font-mono tabular-nums">
+                            {ord.payment?.amountReported !== null && ord.payment?.amountReported !== undefined
+                              ? `GHS ${ord.payment.amountReported.toFixed(2)}`
+                              : '—'}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">Method</span>
+                          <strong>{ord.payment?.paymentMethod || '—'}</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">Tx Ref</span>
+                          <strong className="font-mono">{ord.payment?.transactionReference || '—'}</strong>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          value={verifyNotes[ord.id] || ''}
+                          onChange={(e) => setVerifyNotes({ ...verifyNotes, [ord.id]: e.target.value })}
+                          placeholder="Verification notes (optional)..."
+                          className="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-xs"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleVerifyPayment(ord.id, 'confirm', ord.totalAmount)}
+                            className="min-h-[38px] px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white font-semibold"
+                          >
+                            {isBusy ? 'Updating...' : 'Confirm Payment Received'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleVerifyPayment(ord.id, 'not_received', ord.totalAmount)}
+                            className="min-h-[38px] px-2.5 py-1.5 rounded-lg border border-red-300 text-red-700 font-semibold disabled:opacity-60"
+                          >
+                            Not Received
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleVerifyPayment(ord.id, 'amount_mismatch', ord.totalAmount)}
+                            className="min-h-[38px] px-2.5 py-1.5 rounded-lg border border-amber-300 text-amber-800 font-semibold disabled:opacity-60"
+                          >
+                            Amount Mismatch
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleVerifyPayment(ord.id, 'under_review', ord.totalAmount)}
+                            className="min-h-[38px] px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-semibold disabled:opacity-60"
+                          >
+                            Flag / Review
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
@@ -2039,96 +2238,134 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
             {complaints.length === 0 ? (
               <p className="text-sm text-slate-500">No complaints against your store.</p>
             ) : (
-              complaints.map((c) => (
-                <div key={c.id} className="p-4 border border-slate-200 rounded-lg text-xs space-y-2">
-                  <div className="flex justify-between">
-                    <strong className="text-[#0B1F3A]">{c.subject}</strong>
-                    <span className="text-[#F97316] font-semibold">{c.status}</span>
-                  </div>
-                  <p className="text-slate-700">{c.message}</p>
-                  {c.sellerResponse ? (
-                    <p className="bg-slate-50 p-2 rounded">
-                      <strong>Your Response:</strong> {c.sellerResponse}
-                    </p>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={replyTexts[`c_${c.id}`] || ''}
-                        onChange={(e) => setReplyTexts({ ...replyTexts, [`c_${c.id}`]: e.target.value })}
-                        placeholder="Write response..."
-                        className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded"
-                      />
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await apiRequest(`/api/seller/complaints/${c.id}/respond`, {
-                            method: 'POST',
-                            body: { response: replyTexts[`c_${c.id}`] || '' },
-                          });
-                          await loadAll();
-                        }}
-                        className="px-3 py-1.5 rounded bg-[#0B1F3A] text-white font-semibold"
-                      >
-                        Reply
-                      </button>
+              complaints.map((c) => {
+                const key = `c_${c.id}`;
+                return (
+                  <div key={c.id} className="p-4 border border-slate-200 rounded-lg text-xs space-y-2">
+                    <div className="flex justify-between gap-2">
+                      <strong className="text-[#0B1F3A]">{c.subject}</strong>
+                      <span className="text-[#F97316] font-semibold shrink-0">{c.status}</span>
                     </div>
-                  )}
-                </div>
-              ))
+                    <p className="text-slate-700">{c.message}</p>
+                    {c.sellerResponse ? (
+                      <p className="bg-slate-50 p-2 rounded">
+                        <strong>Your Response:</strong> {c.sellerResponse}
+                      </p>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={replyTexts[key] || ''}
+                          onChange={(e) => setReplyTexts({ ...replyTexts, [key]: e.target.value })}
+                          placeholder="Write response..."
+                          className="flex-1 min-w-0 px-2.5 py-1.5 border border-slate-300 rounded"
+                        />
+                        <button
+                          type="button"
+                          disabled={replyingKey === key}
+                          onClick={async () => {
+                            const text = (replyTexts[key] || '').trim();
+                            if (!text) {
+                              notifyResult('Please write a response before sending.', true);
+                              return;
+                            }
+                            setReplyingKey(key);
+                            try {
+                              const res = await apiRequest<{ message: string }>(
+                                `/api/seller/complaints/${c.id}/respond`,
+                                {
+                                  method: 'POST',
+                                  body: { response: text },
+                                }
+                              );
+                              notifyResult(res.message || 'Response saved.');
+                              await loadAll();
+                            } catch (err: any) {
+                              notifyResult(err?.message || 'Could not send response.', true);
+                            } finally {
+                              setReplyingKey(null);
+                            }
+                          }}
+                          className="px-3 py-1.5 rounded bg-[#0B1F3A] disabled:opacity-60 text-white font-semibold shrink-0"
+                        >
+                          {replyingKey === key ? 'Sending...' : 'Reply'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4">
             <h2 className="font-display text-lg font-bold text-[#0B1F3A]">
               Product Reviews ({reviews.length})
             </h2>
             {reviews.length === 0 ? (
               <p className="text-sm text-slate-500">No product reviews yet.</p>
             ) : (
-              reviews.map((r) => (
-                <div key={r.id} className="p-4 border border-slate-200 rounded-lg text-xs space-y-2">
-                  <div className="flex justify-between">
-                    <strong className="text-[#0B1F3A]">{r.productTitle}</strong>
-                    <span className="text-[#F97316] font-bold">{r.rating}/5</span>
-                  </div>
-                  <p className="text-slate-700">{r.comment}</p>
-                  {r.sellerResponse ? (
-                    <p className="bg-slate-50 p-2 rounded">
-                      <strong>Your Reply:</strong> {r.sellerResponse}
-                    </p>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={replyTexts[`r_${r.id}`] || ''}
-                        onChange={(e) => setReplyTexts({ ...replyTexts, [`r_${r.id}`]: e.target.value })}
-                        placeholder="Reply to customer..."
-                        className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded"
-                      />
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await apiRequest(`/api/seller/reviews/${r.id}/respond`, {
-                            method: 'POST',
-                            body: { response: replyTexts[`r_${r.id}`] || '' },
-                          });
-                          await loadAll();
-                        }}
-                        className="px-3 py-1.5 rounded bg-[#0B1F3A] text-white font-semibold"
-                      >
-                        Reply
-                      </button>
+              reviews.map((r) => {
+                const key = `r_${r.id}`;
+                return (
+                  <div key={r.id} className="p-4 border border-slate-200 rounded-lg text-xs space-y-2">
+                    <div className="flex justify-between gap-2">
+                      <strong className="text-[#0B1F3A]">{r.productTitle}</strong>
+                      <span className="text-[#F97316] font-bold shrink-0">{r.rating}/5</span>
                     </div>
-                  )}
-                </div>
-              ))
+                    <p className="text-slate-700">{r.comment}</p>
+                    {r.sellerResponse ? (
+                      <p className="bg-slate-50 p-2 rounded">
+                        <strong>Your Reply:</strong> {r.sellerResponse}
+                      </p>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={replyTexts[key] || ''}
+                          onChange={(e) => setReplyTexts({ ...replyTexts, [key]: e.target.value })}
+                          placeholder="Reply to customer..."
+                          className="flex-1 min-w-0 px-2.5 py-1.5 border border-slate-300 rounded"
+                        />
+                        <button
+                          type="button"
+                          disabled={replyingKey === key}
+                          onClick={async () => {
+                            const text = (replyTexts[key] || '').trim();
+                            if (!text) {
+                              notifyResult('Please write a reply before publishing.', true);
+                              return;
+                            }
+                            setReplyingKey(key);
+                            try {
+                              const res = await apiRequest<{ message: string }>(
+                                `/api/seller/reviews/${r.id}/respond`,
+                                {
+                                  method: 'POST',
+                                  body: { response: text },
+                                }
+                              );
+                              notifyResult(res.message || 'Reply published.');
+                              await loadAll();
+                            } catch (err: any) {
+                              notifyResult(err?.message || 'Could not publish reply.', true);
+                            } finally {
+                              setReplyingKey(null);
+                            }
+                          }}
+                          className="px-3 py-1.5 rounded bg-[#0B1F3A] disabled:opacity-60 text-white font-semibold shrink-0"
+                        >
+                          {replyingKey === key ? 'Sending...' : 'Reply'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
       )}
-
-      {tab === 'promocodes' && <PromoManagerPanel />}
     </div>
   );
 }

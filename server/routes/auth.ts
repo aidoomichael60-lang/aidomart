@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, CookieOptions } from 'express';
-import { db, createNotification } from '../db.ts';
+import { db, createNotification, recordActivityLog } from '../db.ts';
 import {
   createRateLimiter,
   escapeHtml,
@@ -105,11 +105,18 @@ function isHttpsRequest(req: Request): boolean {
   return Boolean(process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME);
 }
 
+function isEmbeddedCrossSiteRequest(req: Request): boolean {
+  const secFetchDest = String(req.headers['sec-fetch-dest'] || '').toLowerCase();
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase();
+  return secFetchDest === 'iframe' || host.endsWith('.run.app');
+}
+
 function getCookieOptions(req: Request, maxAge: number): CookieOptions {
   const https = isHttpsRequest(req);
+  const embedded = isEmbeddedCrossSiteRequest(req);
   return {
     httpOnly: true,
-    sameSite: https ? 'none' : 'lax',
+    sameSite: https && embedded ? 'none' : 'lax',
     secure: https,
     maxAge,
     path: '/',
@@ -119,15 +126,16 @@ function getCookieOptions(req: Request, maxAge: number): CookieOptions {
 function createSessionAndSetCookie(req: Request, res: Response, userId: number) {
   const sessionId = generateRandomToken(32);
   const csrfToken = generateRandomToken(24);
+  const sessionTtlMs = 30 * 24 * 60 * 60 * 1000;
   const createdAt = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + sessionTtlMs).toISOString();
 
   db.prepare(
     `INSERT INTO sessions (id, user_id, csrf_token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)`
   ).run(sessionId, userId, csrfToken, expiresAt, createdAt);
 
   const signed = signSessionCookie(sessionId);
-  res.cookie('aidomart_session', signed, getCookieOptions(req, 7 * 24 * 60 * 60 * 1000));
+  res.cookie('aidomart_session', signed, getCookieOptions(req, sessionTtlMs));
 
   return { csrfToken, sessionCreatedAt: createdAt };
 }
@@ -482,6 +490,18 @@ authRouter.post('/register', authLimiter, async (req: Request, res: Response) =>
       });
     }
 
+    recordActivityLog({
+      actorUserId: userId,
+      actorEmail: email,
+      actorRole: roleRaw,
+      eventType: roleRaw === 'seller' ? 'seller_registered' : 'buyer_registered',
+      summary:
+        roleRaw === 'seller'
+          ? `New seller registered: ${businessName} (${fullName})`
+          : `New buyer registered: ${fullName}`,
+      details: roleRaw === 'seller' ? `Status: ${saveAsDraft ? 'Draft' : 'Pending Review'}` : email,
+    });
+
     return res.status(201).json({
       message: emailRes.delivered
         ? 'Account created. A verification email has been sent to your email address.'
@@ -547,6 +567,14 @@ authRouter.post('/verify-email', verifyLimiter, (req: Request, res: Response) =>
     db.prepare(`UPDATE verification_tokens SET used_at = datetime('now') WHERE id = ?`).run(tokenRow.id);
     db.prepare(`UPDATE users SET email_verified = 1 WHERE id = ?`).run(user.id);
   })();
+
+  recordActivityLog({
+    actorUserId: user.id,
+    actorEmail: email,
+    actorRole: 'user',
+    eventType: 'email_verified',
+    summary: `Verified email address: ${email}`,
+  });
 
   return res.json({ message: 'Email verified successfully. You can now sign in to AIDOMART.' });
 });
@@ -750,6 +778,15 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
   const { csrfToken, sessionCreatedAt } = createSessionAndSetCookie(req, res, user.id);
   await recordLoginDeviceAndNotify(req, res, user);
 
+  recordActivityLog({
+    actorUserId: user.id,
+    actorEmail: user.email,
+    actorRole: user.role,
+    eventType: 'user_login',
+    summary: `${user.role.toUpperCase()} signed in: ${user.full_name}`,
+    details: user.email,
+  });
+
   let sellerProfile = null;
   if (user.role === 'seller') {
     const sp = db.prepare(`SELECT * FROM seller_profiles WHERE user_id = ?`).get(user.id) as Record<string, any> | undefined;
@@ -934,9 +971,10 @@ authRouter.post('/logout', (req: Request, res: Response) => {
     db.prepare(`DELETE FROM sessions WHERE id = ?`).run(req.sessionId);
   }
   const https = isHttpsRequest(req);
+  const embedded = isEmbeddedCrossSiteRequest(req);
   res.clearCookie('aidomart_session', {
     path: '/',
-    sameSite: https ? 'none' : 'lax',
+    sameSite: https && embedded ? 'none' : 'lax',
     secure: https,
   });
   return res.json({ message: 'Signed out successfully.' });

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
-import { db, createNotification } from '../db.ts';
+import { db, createNotification, recordActivityLog } from '../db.ts';
 import { escapeHtml, sanitizeText } from '../security.ts';
 import { sendTransactionalEmail } from '../email.ts';
 import {
@@ -17,7 +17,7 @@ export const adminRouter = Router();
 
 adminRouter.use(requireAuth, requireRole('admin'));
 
-adminRouter.get('/overview', (_req: Request, res: Response) => {
+function buildOverviewData() {
   const counts = db
     .prepare(
       `SELECT
@@ -46,42 +46,33 @@ adminRouter.get('/overview', (_req: Request, res: Response) => {
     )
     .all();
 
+  const activityLogs = db
+    .prepare(
+      `SELECT id, actor_user_id AS actorUserId, actor_email AS actorEmail, actor_role AS actorRole,
+              event_type AS eventType, summary, details, created_at AS createdAt
+       FROM activity_logs
+       ORDER BY id DESC
+       LIMIT 50`
+    )
+    .all();
+
   const brevoConfigured = Boolean(process.env.BREVO_API_KEY?.trim());
   const promoCreatorPolicy = getPlatformSetting('promo_creator_policy', 'buyer');
   const requireLoginEmailOtp = getPlatformSetting('require_login_email_otp', 'true') === 'true';
 
-  return res.json({
+  return {
     counts,
     emailLogs,
+    activityLogs,
     settings: {
       brevoConfigured,
       promoCreatorPolicy,
       requireLoginEmailOtp,
     },
-  });
-});
+  };
+}
 
-adminRouter.put('/settings', (req: Request, res: Response) => {
-  const promoCreatorPolicy = sanitizeText(req.body?.promoCreatorPolicy, 20);
-  const requireLoginEmailOtp = req.body?.requireLoginEmailOtp;
-
-  if (promoCreatorPolicy && ['buyer', 'seller', 'both'].includes(promoCreatorPolicy)) {
-    db.prepare(
-      `INSERT INTO platform_settings (key, value, updated_at) VALUES ('promo_creator_policy', ?, datetime('now'))
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-    ).run(promoCreatorPolicy);
-  }
-  if (typeof requireLoginEmailOtp === 'boolean') {
-    db.prepare(
-      `INSERT INTO platform_settings (key, value, updated_at) VALUES ('require_login_email_otp', ?, datetime('now'))
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
-    ).run(requireLoginEmailOtp ? 'true' : 'false');
-  }
-
-  return res.json({ message: 'Platform settings updated.' });
-});
-
-adminRouter.get('/sellers', (_req: Request, res: Response) => {
+function buildSellersData() {
   // Ensure any seller user missing a profile row still appears for admin verification
   const orphanSellers = db
     .prepare(
@@ -124,7 +115,7 @@ adminRouter.get('/sellers', (_req: Request, res: Response) => {
     )
     .all() as Record<string, any>[];
 
-  const sellers = rows.map((row) => {
+  return rows.map((row) => {
     const documents = db
       .prepare(
         `SELECT id, original_name AS originalName, mime_type AS mimeType, size_bytes AS sizeBytes,
@@ -138,9 +129,9 @@ adminRouter.get('/sellers', (_req: Request, res: Response) => {
         `SELECT sal.id, sal.action, sal.previous_status AS previousStatus, sal.new_status AS newStatus,
                 sal.verified_badge_state AS verifiedBadgeState,
                 sal.physical_inspection_conducted AS physicalInspectionConducted,
-                sal.notes, sal.created_at AS createdAt, u.full_name AS actorName
+                sal.notes, sal.created_at AS createdAt, COALESCE(u.full_name, 'System') AS actorName
          FROM seller_audit_logs sal
-         JOIN users u ON u.id = sal.actor_user_id
+         LEFT JOIN users u ON u.id = sal.actor_user_id
          WHERE sal.seller_profile_id = ?
          ORDER BY sal.created_at DESC, sal.id DESC`
       )
@@ -176,8 +167,122 @@ adminRouter.get('/sellers', (_req: Request, res: Response) => {
       updatedAt: row.updated_at,
     };
   });
+}
 
-  return res.json({ sellers });
+adminRouter.get('/bootstrap', (req: Request, res: Response) => {
+  const ref = sanitizeText(req.query.ref, 60);
+  const overview = buildOverviewData();
+  const sellers = buildSellersData();
+
+  const users = db
+    .prepare(
+      `SELECT u.id, u.email, u.full_name AS fullName, u.phone, u.role,
+              u.email_verified AS emailVerified, u.account_status AS accountStatus, u.created_at AS createdAt,
+              sp.business_name AS businessName
+       FROM users u
+       LEFT JOIN seller_profiles sp ON sp.user_id = u.id
+       ORDER BY u.created_at DESC`
+    )
+    .all()
+    .map((u: any) => ({ ...u, emailVerified: Boolean(u.emailVerified) }));
+
+  const products = db
+    .prepare(
+      `SELECT p.id, p.title, p.price, p.stock, p.published, p.moderated_reason AS moderatedReason,
+              p.created_at AS createdAt, c.name AS categoryName, sp.business_name AS sellerBusinessName
+       FROM products p
+       JOIN categories c ON c.id = p.category_id
+       JOIN seller_profiles sp ON sp.user_id = p.seller_id
+       ORDER BY p.created_at DESC`
+    )
+    .all()
+    .map((p: any) => ({ ...p, published: Boolean(p.published) }));
+
+  const categories = db.prepare(`SELECT * FROM categories ORDER BY id ASC`).all();
+
+  const promotions = db
+    .prepare(
+      `SELECT pr.*, sp.business_name AS sellerBusinessName, p.title AS productTitle
+       FROM seller_promotions pr
+       JOIN seller_profiles sp ON sp.user_id = pr.seller_id
+       LEFT JOIN products p ON p.id = pr.product_id
+       ORDER BY pr.created_at DESC`
+    )
+    .all();
+
+  let orderSql = `
+    SELECT o.id, o.order_reference AS orderReference, o.buyer_name AS buyerName, o.buyer_email AS buyerEmail,
+           o.total_amount AS totalAmount, o.order_status AS orderStatus, o.fulfillment_method AS fulfillmentMethod,
+           o.created_at AS createdAt, sp.business_name AS sellerBusinessName,
+           p.status AS paymentStatus, p.amount_reported AS amountReported, p.amount_confirmed AS amountConfirmed,
+           p.transaction_reference AS transactionReference
+    FROM orders o
+    JOIN seller_profiles sp ON sp.user_id = o.seller_id
+    LEFT JOIN payments p ON p.order_id = o.id
+  `;
+  const orderParams: any[] = [];
+  if (ref) {
+    orderSql += ` WHERE o.order_reference LIKE ?`;
+    orderParams.push(`%${ref}%`);
+  }
+  orderSql += ` ORDER BY o.created_at DESC LIMIT 100`;
+  const orders = db.prepare(orderSql).all(...orderParams);
+
+  const complaints = db
+    .prepare(
+      `SELECT c.id, c.order_id AS orderId, o.order_reference AS orderReference,
+              c.reporter_id AS reporterId, u.full_name AS reporterName, u.role AS reporterRole,
+              sp_rep.business_name AS reporterBusinessName,
+              c.target_seller_id AS targetSellerId, sp.business_name AS targetSellerName,
+              c.subject, c.message, c.status, c.seller_response AS sellerResponse,
+              c.admin_notes AS adminNotes, c.created_at AS createdAt, c.updated_at AS updatedAt
+       FROM complaints c
+       JOIN users u ON u.id = c.reporter_id
+       LEFT JOIN seller_profiles sp_rep ON sp_rep.user_id = c.reporter_id
+       LEFT JOIN orders o ON o.id = c.order_id
+       LEFT JOIN seller_profiles sp ON sp.user_id = c.target_seller_id
+       ORDER BY c.created_at DESC`
+    )
+    .all();
+
+  return res.json({
+    overview,
+    sellers,
+    users,
+    products,
+    categories,
+    promotions,
+    orders,
+    complaints,
+  });
+});
+
+adminRouter.get('/overview', (_req: Request, res: Response) => {
+  return res.json(buildOverviewData());
+});
+
+adminRouter.put('/settings', (req: Request, res: Response) => {
+  const promoCreatorPolicy = sanitizeText(req.body?.promoCreatorPolicy, 20);
+  const requireLoginEmailOtp = req.body?.requireLoginEmailOtp;
+
+  if (promoCreatorPolicy && ['buyer', 'seller', 'both'].includes(promoCreatorPolicy)) {
+    db.prepare(
+      `INSERT INTO platform_settings (key, value, updated_at) VALUES ('promo_creator_policy', ?, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+    ).run(promoCreatorPolicy);
+  }
+  if (typeof requireLoginEmailOtp === 'boolean') {
+    db.prepare(
+      `INSERT INTO platform_settings (key, value, updated_at) VALUES ('require_login_email_otp', ?, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+    ).run(requireLoginEmailOtp ? 'true' : 'false');
+  }
+
+  return res.json({ message: 'Platform settings updated.' });
+});
+
+adminRouter.get('/sellers', (_req: Request, res: Response) => {
+  return res.json({ sellers: buildSellersData() });
 });
 
 adminRouter.get('/documents/:docId', (req: Request, res: Response) => {
@@ -285,6 +390,15 @@ adminRouter.post('/sellers/:profileId/review', async (req: Request, res: Respons
       type: 'seller_review',
     });
   })();
+
+  recordActivityLog({
+    actorUserId: admin.id,
+    actorEmail: admin.email,
+    actorRole: 'admin',
+    eventType: 'admin_seller_review',
+    summary: `Admin set ${profile.business_name} to ${newStatus}${grantVerifiedBadge ? ' (Verified Badge)' : ''}`,
+    details: adminFeedback || profile.email,
+  });
 
   const baseUrl = getAppBaseUrl(req);
   const emailRes = await sendTransactionalEmail({

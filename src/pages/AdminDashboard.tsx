@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Activity,
   AlertCircle,
   BarChart3,
   CheckCircle2,
@@ -19,6 +20,7 @@ import { apiRequest } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import type { AuthUser } from '../types/marketplace';
 import { VerifiedBadge } from '../components/VerifiedBadge';
+import { SafeAssetImage } from '../components/SafeAssetImage';
 import { getFirstName, useLoginGreeting } from '../utils/greeting';
 
 type AdminTab =
@@ -126,55 +128,42 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
   const loadAdminData = async (options: { preserveBanner?: boolean } = {}) => {
     setLoadingData(true);
     try {
-      const results = await Promise.allSettled([
-        apiRequest('/api/admin/overview'),
-        apiRequest<{ sellers: any[] }>('/api/admin/sellers'),
-        apiRequest<{ users: any[] }>('/api/admin/users'),
-        apiRequest<{ products: any[] }>('/api/admin/products'),
-        apiRequest<{ categories: any[] }>('/api/admin/categories'),
-        apiRequest<{ promotions: any[] }>('/api/admin/promotions'),
-        apiRequest<{ orders: any[] }>(
-          `/api/admin/orders${orderSearch ? `?ref=${encodeURIComponent(orderSearch)}` : ''}`
-        ),
-        apiRequest<{ complaints: any[] }>('/api/admin/complaints'),
-      ]);
+      const qs = orderSearch.trim() ? `?ref=${encodeURIComponent(orderSearch.trim())}` : '';
+      const boot = await apiRequest<{
+        overview: any;
+        sellers: any[];
+        users: any[];
+        products: any[];
+        categories: any[];
+        promotions: any[];
+        orders: any[];
+        complaints: any[];
+      }>(`/api/admin/bootstrap${qs}`);
 
-      const [ovRes, selRes, usrRes, prdRes, catsRes, prmRes, ordRes, cmpRes] = results;
-
-      if (ovRes.status === 'fulfilled') setOverview(ovRes.value);
-      if (selRes.status === 'fulfilled') {
-        const sellerRows = selRes.value.sellers || [];
-        setSellers(sellerRows);
-        const initForms: typeof reviewForms = {};
-        for (const s of sellerRows) {
-          initForms[s.id] = {
-            applicationStatus: s.applicationStatus || 'Pending Review',
-            verifiedBadge: Boolean(s.verifiedBadge),
-            physicalInspectionConducted: Boolean(s.physicalInspectionConducted),
-            physicalInspectionDate: s.physicalInspectionDate || new Date().toISOString().slice(0, 10),
-            physicalInspectionNotes: s.physicalInspectionNotes || '',
-            adminFeedback: s.adminFeedback || '',
-          };
-        }
-        setReviewForms(initForms);
+      setOverview(boot.overview || null);
+      const sellerRows = boot.sellers || [];
+      setSellers(sellerRows);
+      const initForms: typeof reviewForms = {};
+      for (const s of sellerRows) {
+        initForms[s.id] = {
+          applicationStatus: s.applicationStatus || 'Pending Review',
+          verifiedBadge: Boolean(s.verifiedBadge),
+          physicalInspectionConducted: Boolean(s.physicalInspectionConducted),
+          physicalInspectionDate: s.physicalInspectionDate || new Date().toISOString().slice(0, 10),
+          physicalInspectionNotes: s.physicalInspectionNotes || '',
+          adminFeedback: s.adminFeedback || '',
+        };
       }
-      if (usrRes.status === 'fulfilled') setUsersList(usrRes.value.users || []);
-      if (prdRes.status === 'fulfilled') setProductsList(prdRes.value.products || []);
-      if (catsRes.status === 'fulfilled') setCategoriesList(catsRes.value.categories || []);
-      if (prmRes.status === 'fulfilled') setPromotionsList(prmRes.value.promotions || []);
-      if (ordRes.status === 'fulfilled') setOrdersList(ordRes.value.orders || []);
-      if (cmpRes.status === 'fulfilled') setComplaintsList(cmpRes.value.complaints || []);
-
-      const firstRejected = results.find(
-        (r): r is PromiseRejectedResult => r.status === 'rejected'
-      );
-      if (firstRejected && !options.preserveBanner) {
-        const reason = firstRejected.reason as any;
-        showError(reason?.message || 'Some admin records failed to load. Tap Refresh Data to retry.');
-      }
+      setReviewForms(initForms);
+      setUsersList(boot.users || []);
+      setProductsList(boot.products || []);
+      setCategoriesList(boot.categories || []);
+      setPromotionsList(boot.promotions || []);
+      setOrdersList(boot.orders || []);
+      setComplaintsList(boot.complaints || []);
     } catch (err: any) {
       if (!options.preserveBanner) {
-        showError(err?.message || 'Unable to load admin records. Tap Refresh to try again.');
+        showError(err?.message || 'Unable to load admin records. Tap Refresh Data to try again.');
       }
     } finally {
       setLoadingData(false);
@@ -439,9 +428,35 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
         ))}
       </div>
 
-      {/* OVERVIEW & BREVO EMAIL LOGS */}
+      {/* OVERVIEW & ACTIVITY LOGS */}
       {tab === 'overview' && overview && (
         <div className="space-y-5 sm:space-y-6">
+          {awaitingApprovalCount > 0 && (
+            <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <ShieldCheck className="w-5 h-5 text-[#F97316] shrink-0 mt-0.5" />
+                <div className="text-xs text-slate-800">
+                  <p className="font-bold text-[#0B1F3A]">
+                    {awaitingApprovalCount} Seller Account{awaitingApprovalCount === 1 ? '' : 's'} Awaiting Verification / Approval
+                  </p>
+                  <p className="text-slate-600 mt-0.5">
+                    Review business profiles, supporting documents, and approve sellers to publish products.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setTab('sellers');
+                  setSellerFilter('needs_review');
+                }}
+                className="px-4 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold shrink-0 self-start sm:self-auto"
+              >
+                Review &amp; Approve Sellers &rarr;
+              </button>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
             <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4">
               <p className="text-[11px] sm:text-xs text-slate-500">Buyers</p>
@@ -547,12 +562,84 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
             </div>
           </div>
 
+          {/* Platform Activity Logs */}
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-4 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-[#F97316]" />
+                <h2 className="font-display text-base font-bold text-[#0B1F3A]">
+                  Platform Activity Logs ({overview.activityLogs?.length || 0})
+                </h2>
+              </div>
+              <span className="text-[11px] text-slate-500">Signups, logins, profile updates &amp; approvals</span>
+            </div>
+
+            {!overview.activityLogs || overview.activityLogs.length === 0 ? (
+              <div className="px-4 py-6 text-center text-xs text-slate-500">
+                No marketplace activity logged yet. Seller registrations, profile edits, and approvals will appear here automatically.
+              </div>
+            ) : (
+              <>
+                <div className="md:hidden divide-y divide-slate-100 text-xs max-h-96 overflow-y-auto">
+                  {overview.activityLogs.map((log: any) => (
+                    <div key={log.id} className="p-4 space-y-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-bold text-[#0B1F3A] break-words">{log.summary}</span>
+                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold capitalize shrink-0 text-[10px]">
+                          {log.actorRole}
+                        </span>
+                      </div>
+                      {log.actorEmail && (
+                        <p className="text-[11px] text-slate-500 break-all">{log.actorEmail}</p>
+                      )}
+                      {log.details && (
+                        <p className="text-[11px] text-slate-600 break-words">{log.details}</p>
+                      )}
+                      <p className="text-[10px] text-slate-400 tabular-nums">
+                        {new Date(log.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto max-h-96 overflow-y-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-3 font-semibold">Activity</th>
+                        <th className="px-4 py-3 font-semibold">Account</th>
+                        <th className="px-4 py-3 font-semibold">Role</th>
+                        <th className="px-4 py-3 font-semibold">Details</th>
+                        <th className="px-4 py-3 font-semibold">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {overview.activityLogs.map((log: any) => (
+                        <tr key={log.id}>
+                          <td className="px-4 py-2.5 font-semibold text-[#0B1F3A]">{log.summary}</td>
+                          <td className="px-4 py-2.5 text-slate-600">{log.actorEmail || '—'}</td>
+                          <td className="px-4 py-2.5 capitalize">{log.actorRole}</td>
+                          <td className="px-4 py-2.5 text-slate-600 max-w-xs truncate">
+                            {log.details || log.eventType}
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-500 tabular-nums whitespace-nowrap">
+                            {new Date(log.createdAt).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+
           {/* Brevo Email Delivery Log */}
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
             <div className="px-4 sm:px-6 py-4 border-b border-slate-200 flex items-center gap-2">
               <Mail className="w-4 h-4 text-[#F97316]" />
               <h2 className="font-display text-base font-bold text-[#0B1F3A]">
-                Recent Brevo Transactional Email Events
+                Recent Transactional Email Events
               </h2>
             </div>
 
@@ -694,23 +781,37 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
               return (
                 <div key={s.id} className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-5">
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-200 pb-4">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-display text-base sm:text-lg font-bold text-[#0B1F3A] break-words">
-                          {s.businessName}
-                        </h3>
-                        {s.verifiedBadge && <VerifiedBadge />}
+                    <div className="flex items-start gap-3 min-w-0">
+                      {s.storefrontImage ? (
+                        <SafeAssetImage
+                          src={s.storefrontImage}
+                          alt={s.businessName}
+                          compact
+                          className="w-12 h-12 rounded-full object-cover border border-slate-200 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-[#0B1F3A] text-white flex items-center justify-center text-sm font-bold shrink-0">
+                          {String(s.businessName || s.legalName || 'S').slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-display text-base sm:text-lg font-bold text-[#0B1F3A] break-words">
+                            {s.businessName}
+                          </h3>
+                          {s.verifiedBadge && <VerifiedBadge />}
+                        </div>
+                        <p className="text-xs text-slate-600 mt-1 break-words">
+                          Legal Name: <strong>{s.legalName}</strong> ·{' '}
+                          <span className="break-all">{s.email}</span> (
+                          {s.emailVerified ? 'Email Verified' : 'Email Unverified'}) · Tel:{' '}
+                          {s.phone || 'Not provided'}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5 break-words">
+                          Address: {s.physicalAddress || 'Not provided yet'}{' '}
+                          {s.locationCity ? `(${s.locationCity})` : ''}
+                        </p>
                       </div>
-                      <p className="text-xs text-slate-600 mt-1 break-words">
-                        Legal Name: <strong>{s.legalName}</strong> ·{' '}
-                        <span className="break-all">{s.email}</span> (
-                        {s.emailVerified ? 'Email Verified' : 'Email Unverified'}) · Tel:{' '}
-                        {s.phone || 'Not provided'}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-0.5 break-words">
-                        Address: {s.physicalAddress || 'Not provided yet'}{' '}
-                        {s.locationCity ? `(${s.locationCity})` : ''}
-                      </p>
                     </div>
                     <span
                       className={`self-start px-2.5 py-1 rounded-md border text-xs font-bold shrink-0 ${getStatusBadgeClasses(
@@ -722,6 +823,22 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
                   </div>
 
                   {s.description && <p className="text-xs text-slate-700 leading-relaxed">{s.description}</p>}
+
+                  {s.businessPhotos && s.businessPhotos.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold text-slate-700">Storefront &amp; Business Photos</p>
+                      <div className="flex flex-wrap gap-2">
+                        {s.businessPhotos.map((photo: string) => (
+                          <SafeAssetImage
+                            key={photo}
+                            src={photo}
+                            alt={s.businessName}
+                            className="w-16 h-16 rounded-lg object-cover border border-slate-200"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Private Verification Documents */}
                   <div className="space-y-2">
@@ -745,6 +862,30 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
                       </div>
                     ) : (
                       <p className="text-xs text-slate-400">No verification documents uploaded yet.</p>
+                    )}
+                  </div>
+
+                  {/* Per-Seller Verification & Activity Log */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-slate-700">
+                      Seller Activity &amp; Audit Log ({s.auditLogs?.length || 0})
+                    </p>
+                    {s.auditLogs?.length > 0 ? (
+                      <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-lg bg-slate-50/70 text-[11px]">
+                        {s.auditLogs.map((log: any) => (
+                          <div key={log.id} className="px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                            <div className="min-w-0">
+                              <span className="font-semibold text-[#0B1F3A]">{log.action}</span>
+                              {log.notes && <span className="text-slate-600"> — {log.notes}</span>}
+                            </div>
+                            <span className="text-slate-400 shrink-0 tabular-nums">
+                              {log.actorName} · {new Date(log.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400">No seller audit entries recorded yet.</p>
                     )}
                   </div>
 

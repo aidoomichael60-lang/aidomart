@@ -14,11 +14,9 @@ import {
   Star,
   Tag,
   Truck,
-  Volume2,
 } from 'lucide-react';
 import { apiRequest } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import { useNotifications } from '../context/NotificationsContext';
 import type { BuyerConversation, Complaint, Order } from '../types/marketplace';
 import { PromoManagerPanel } from '../components/PromoManagerPanel';
 import { VerifiedBadge } from '../components/VerifiedBadge';
@@ -36,7 +34,6 @@ type BuyerTab = 'orders' | 'messages' | 'reviews' | 'promos' | 'complaints' | 'p
 export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps) {
   const { user, refreshUser, settings } = useAuth();
   const { greeting } = useLoginGreeting(user);
-  const { testNotificationSound } = useNotifications();
   const [tab, setTab] = useState<BuyerTab>(() => {
     const qTab = initialQuery?.get('tab');
     if (
@@ -100,7 +97,6 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
   const [soundEnabled, setSoundEnabled] = useState(user?.soundEnabled ?? true);
   const [login2faEnabled, setLogin2faEnabled] = useState(user?.login2faEnabled ?? true);
   const [prefMsg, setPrefMsg] = useState('');
-  const [soundTestMsg, setSoundTestMsg] = useState('');
 
   const loadBuyerData = async () => {
     setLoadingOrders(true);
@@ -345,7 +341,7 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
       ? [{ id: 'promos' as BuyerTab, label: 'Promotional Codes', icon: <Tag className="w-4 h-4" /> }]
       : []),
     { id: 'complaints', label: 'Complaints & Feedback', icon: <MessageSquareWarning className="w-4 h-4" /> },
-    { id: 'profile', label: 'Profile & Sound', icon: <Settings className="w-4 h-4" /> },
+    { id: 'profile', label: 'Account Settings', icon: <Settings className="w-4 h-4" /> },
   ];
 
   return (
@@ -374,7 +370,7 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
         </div>
       </div>
 
-      {/* Horizontal Tab Bar */}
+      {/* Tab Bar */}
       <div className="flex flex-wrap items-center gap-2 max-w-full min-w-0">
         {tabs.map((t) => (
           <button
@@ -1241,11 +1237,11 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
         </div>
       )}
 
-      {/* PROFILE & NOTIFICATION SOUND */}
+      {/* ACCOUNT SETTINGS & SECURITY */}
       {tab === 'profile' && (
         <div className="max-w-xl bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-6">
           <h2 className="font-display text-lg font-bold text-[#0B1F3A]">
-            Account Profile & Notification Sound Preferences
+            Account Settings & Security
           </h2>
 
           <form onSubmit={handleSavePreferences} className="space-y-4">
@@ -1275,7 +1271,7 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
                 onChange={(e) => setSoundEnabled(e.target.checked)}
                 className="rounded border-slate-300"
               />
-              <span>Play AIDOMART notification sound (static/notification.mp3) for new alerts</span>
+              <span>Play alert chime for new order &amp; message notifications</span>
             </label>
             <label className="flex items-center gap-2.5 text-sm text-slate-800 cursor-pointer">
               <input
@@ -1294,26 +1290,14 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
               </p>
             )}
 
-            <div className="flex flex-wrap items-center gap-3 pt-2">
+            <div className="pt-2">
               <button
                 type="submit"
-                className="px-4 py-2.5 rounded-lg bg-[#0B1F3A] text-white text-xs font-semibold"
+                className="px-4 py-2.5 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] text-white text-xs font-semibold"
               >
-                Save Preferences
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const res = await testNotificationSound();
-                  setSoundTestMsg(res.message);
-                }}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                <Volume2 className="w-4 h-4 text-[#F97316]" />
-                <span>Test Notification Sound</span>
+                Save Account Settings
               </button>
             </div>
-            {soundTestMsg && <p className="text-xs text-slate-600">{soundTestMsg}</p>}
           </form>
         </div>
       )}

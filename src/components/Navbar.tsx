@@ -39,6 +39,12 @@ export function Navbar({ currentPath, onNavigate }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
+
+  const profileAvatarUrl =
+    user?.role === 'seller' && user.sellerProfile?.storefrontImage
+      ? user.sellerProfile.storefrontImage
+      : null;
 
   const navLinks = [
     { label: 'Home', path: '/' },
@@ -290,7 +296,16 @@ export function Navbar({ currentPath, onNavigate }: NavbarProps) {
                 onClick={() => handleLinkClick(dashboardPath)}
                 className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0"
               >
-                <User className="w-3.5 h-3.5" />
+                {profileAvatarUrl && !avatarFailed ? (
+                  <img
+                    src={profileAvatarUrl}
+                    alt={getAccountDisplayName(user)}
+                    onError={() => setAvatarFailed(true)}
+                    className="w-5 h-5 rounded-full object-cover border border-white/40 shrink-0"
+                  />
+                ) : (
+                  <User className="w-3.5 h-3.5" />
+                )}
                 <span>Dashboard</span>
               </button>
 
@@ -364,9 +379,19 @@ export function Navbar({ currentPath, onNavigate }: NavbarProps) {
                 <button
                   type="button"
                   onClick={() => handleLinkClick(dashboardPath)}
-                  className="w-full py-2.5 px-4 rounded-lg bg-[#F97316] text-white text-sm font-semibold text-center"
+                  className="w-full py-2.5 px-4 rounded-lg bg-[#F97316] text-white text-sm font-semibold text-center inline-flex items-center justify-center gap-2"
                 >
-                  Open Dashboard ({getAccountDisplayName(user)})
+                  {profileAvatarUrl && !avatarFailed ? (
+                    <img
+                      src={profileAvatarUrl}
+                      alt={getAccountDisplayName(user)}
+                      onError={() => setAvatarFailed(true)}
+                      className="w-5 h-5 rounded-full object-cover border border-white/40 shrink-0"
+                    />
+                  ) : (
+                    <User className="w-4 h-4 shrink-0" />
+                  )}
+                  <span>Open Dashboard ({getAccountDisplayName(user)})</span>
                 </button>
                 <button
                   type="button"

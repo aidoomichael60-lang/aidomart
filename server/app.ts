@@ -106,9 +106,15 @@ export function createApp() {
       res: express.Response,
       _next: express.NextFunction
     ) => {
-      const status = err?.status || (err?.message?.includes('Only ') ? 400 : 500);
+      const isMulterLimit = err?.code === 'LIMIT_FILE_SIZE' || err?.code === 'LIMIT_FILE_COUNT';
+      const status =
+        err?.status || (isMulterLimit || err?.message?.includes('Only ') ? 400 : 500);
       const message =
-        status < 500 && err?.message ? err.message : 'An unexpected server error occurred.';
+        err?.code === 'LIMIT_FILE_SIZE'
+          ? 'Uploaded file is too large. Maximum size is 10 MB per image (8 MB for documents).'
+          : status < 500 && err?.message
+            ? err.message
+            : 'An unexpected server error occurred.';
       if (status >= 500) {
         console.error('Server error:', err);
       }

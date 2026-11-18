@@ -324,10 +324,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     if (res.ok) {
       return {
         ok: true,
-        message:
-          res.source === 'mp3'
-            ? 'Notification sound (notification.mp3) played successfully.'
-            : 'Notification chime played successfully.',
+        message: 'Notification alert played successfully.',
       };
     }
     return {

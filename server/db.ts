@@ -387,6 +387,17 @@ export function initDatabase() {
       attempts INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS activity_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      actor_email TEXT NOT NULL DEFAULT '',
+      actor_role TEXT NOT NULL DEFAULT 'system',
+      event_type TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      details TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Safe schema migrations for existing SQLite databases
@@ -487,4 +498,29 @@ export function createNotification(params: {
     params.link ?? null,
     params.type ?? 'info'
   );
+}
+
+export function recordActivityLog(params: {
+  actorUserId?: number | null;
+  actorEmail?: string | null;
+  actorRole?: string | null;
+  eventType: string;
+  summary: string;
+  details?: string | null;
+}) {
+  try {
+    db.prepare(`
+      INSERT INTO activity_logs (actor_user_id, actor_email, actor_role, event_type, summary, details)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      params.actorUserId ?? null,
+      (params.actorEmail || '').slice(0, 180),
+      (params.actorRole || 'system').slice(0, 30),
+      params.eventType.slice(0, 80),
+      params.summary.slice(0, 300),
+      (params.details || '').slice(0, 600)
+    );
+  } catch {
+    // Do not fail business operation if activity log write fails
+  }
 }

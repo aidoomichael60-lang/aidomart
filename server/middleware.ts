@@ -41,12 +41,17 @@ fs.mkdirSync(PRIVATE_UPLOAD_DIR, { recursive: true });
 
 const ALLOWED_IMAGE_MIME = new Set([
   'image/jpeg',
+  'image/jpg',
+  'image/pjpeg',
   'image/png',
   'image/webp',
+  'image/gif',
 ]);
 
 const ALLOWED_DOC_MIME = new Set([
   'image/jpeg',
+  'image/jpg',
+  'image/pjpeg',
   'image/png',
   'image/webp',
   'application/pdf',
@@ -57,14 +62,14 @@ export const publicImageUpload = multer({
     destination: (_req, _file, cb) => cb(null, PUBLIC_UPLOAD_DIR),
     filename: (_req, file, cb) => {
       const ext = path.extname(file.originalname).toLowerCase().replace(/[^a-z0-9.]/g, '') || '.jpg';
-      const safeExt = ['.jpg', '.jpeg', '.png', '.webp'].includes(ext) ? ext : '.jpg';
+      const safeExt = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext) ? ext : '.jpg';
       cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${safeExt}`);
     },
   }),
-  limits: { fileSize: 5 * 1024 * 1024, files: 6 },
+  limits: { fileSize: 10 * 1024 * 1024, files: 6 },
   fileFilter: (_req, file, cb) => {
-    if (!ALLOWED_IMAGE_MIME.has(file.mimetype)) {
-      return cb(new Error('Only JPG, PNG, and WebP images are permitted.'));
+    if (!ALLOWED_IMAGE_MIME.has(file.mimetype.toLowerCase())) {
+      return cb(new Error('Only JPG, PNG, WebP, or GIF images are permitted.'));
     }
     cb(null, true);
   },
@@ -107,7 +112,7 @@ export function attachSession(req: Request, _res: Response, next: NextFunction) 
               u.login_2fa_enabled, u.sound_enabled, u.account_status
        FROM sessions s
        JOIN users u ON u.id = s.user_id
-       WHERE s.id = ? AND s.expires_at > datetime('now')`
+       WHERE s.id = ?`
     )
     .get(sessionId) as
     | {
@@ -127,7 +132,8 @@ export function attachSession(req: Request, _res: Response, next: NextFunction) 
       }
     | undefined;
 
-  if (!row || row.account_status === 'Suspended') {
+  const expiresMs = row?.expires_at ? Date.parse(row.expires_at) : 0;
+  if (!row || !Number.isFinite(expiresMs) || expiresMs <= Date.now() || row.account_status === 'Suspended') {
     req.authUser = null;
     req.sessionId = null;
     req.csrfToken = null;

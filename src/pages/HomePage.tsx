@@ -94,6 +94,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
 
   return (
     <div className="w-full max-w-full overflow-x-hidden">
+      {/* 1. Full-width Homepage Carousel directly beneath Navigation */}
       <section
         aria-label="AIDOMART Highlights"
         onMouseEnter={() => setPaused(true)}
@@ -154,6 +155,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
           );
         })}
 
+        {/* Manual Navigation Controls */}
         <button
           type="button"
           onClick={prevSlide}
@@ -171,6 +173,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
           <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
 
+        {/* Slide Indicators */}
         <div className="absolute bottom-2.5 sm:bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
           {slides.map((s, idx) => (
             <button
@@ -186,6 +189,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
         </div>
       </section>
 
+      {/* 2. Marketplace Trust Cards (fully visible grid, no horizontal scroll) */}
       <section id="how-it-works" className="relative overflow-hidden border-b border-slate-200 bg-white">
         <div className="absolute inset-0 pointer-events-none">
           <SafeAssetImage
@@ -246,6 +250,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
         </div>
       </section>
 
+      {/* 3. Product Categories */}
       <section className="max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-12 min-w-0">
         <div className="flex items-end justify-between gap-3 mb-3.5 sm:mb-6 min-w-0">
           <div className="min-w-0 flex-1">
@@ -302,6 +307,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
         </div>
       </section>
 
+      {/* 4. Genuine Published Products & Approved Sellers (Prioritized before secondary banners) */}
       <section className="max-w-7xl mx-auto px-3 sm:px-6 pb-6 sm:pb-12 space-y-8 sm:space-y-12">
         <div>
           <div className="flex items-end justify-between gap-3 mb-4 sm:mb-6">
@@ -364,6 +370,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
           )}
         </div>
 
+        {/* Approved Sellers Directory */}
         {approvedSellers.length > 0 && (
           <div className="min-w-0">
             <div className="flex items-end justify-between gap-3 mb-3.5 sm:mb-6 min-w-0">
@@ -436,6 +443,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
         )}
       </section>
 
+      {/* 5. Marketplace Highlights (stacked on mobile, 2-col on desktop — no horizontal scroll) */}
       <section className="bg-slate-100 border-t border-slate-200 py-6 sm:py-12 overflow-hidden">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 space-y-4 sm:space-y-6 min-w-0">
           <div className="min-w-0">

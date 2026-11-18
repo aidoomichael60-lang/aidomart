@@ -15,6 +15,8 @@ let cachedMiddlewareModule: typeof import('../../server/middleware.ts') | null =
 let cachedHandler: ReturnType<typeof serverless> | null = null;
 const syncedUploadKeys = new Set<string>();
 
+// Serialize DB sync, route execution, and blob persistence within each warm isolate
+// so parallel API calls cannot close/reopen SQLite mid-query.
 let isolateQueue: Promise<void> = Promise.resolve();
 function runSerialized<T>(task: () => Promise<T>): Promise<T> {
   const next = isolateQueue.then(task, task);
@@ -202,7 +204,8 @@ async function persistStateToBlobs(reqPath: string, method: string): Promise<voi
     method === 'GET' &&
     (reqPath.includes('/auth/oauth/') ||
       reqPath.includes('/auth/verify-email') ||
-      reqPath.includes('/admin/sellers'));
+      reqPath.includes('/admin/sellers') ||
+      reqPath.includes('/admin/bootstrap'));
 
   if (!isMutating && !touchesAuthOrRepairGet) return;
 

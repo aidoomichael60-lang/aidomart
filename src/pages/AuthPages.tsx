@@ -228,8 +228,8 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
     try {
       const payload =
         loginMethod === 'phone'
-          ? { phone: loginPhone, password }
-          : { email, password };
+          ? { phone: loginPhone.trim(), password }
+          : { email: email.trim(), password };
 
       const data = await apiRequest<{
         requiresLoginOtp: boolean;
@@ -272,7 +272,7 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
         '/api/auth/verify-login-code',
         {
           method: 'POST',
-          body: { email: otpTargetEmail || email, code: otpCode },
+          body: { email: (otpTargetEmail || email).trim(), code: otpCode.trim() },
         }
       );
       setAuthenticatedUser(data.user, data.csrfToken);
@@ -325,15 +325,15 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
         method: 'POST',
         body: {
           role: regRole,
-          fullName,
-          email,
-          phone,
+          fullName: fullName.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
           password,
-          businessName,
-          businessDescription,
-          physicalAddress,
-          locationCity,
-          deliveryPickupNotes,
+          businessName: businessName.trim(),
+          businessDescription: businessDescription.trim(),
+          physicalAddress: physicalAddress.trim(),
+          locationCity: locationCity.trim(),
+          deliveryPickupNotes: deliveryPickupNotes.trim(),
           categories: selectedCategories,
           saveAsDraft,
         },
@@ -361,7 +361,7 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
     try {
       const data = await apiRequest<{ message: string }>('/api/auth/verify-email', {
         method: 'POST',
-        body: { email, code: verifyCode },
+        body: { email: email.trim(), code: verifyCode.trim() },
       });
       setEmailVerifiedDone(true);
       setInfo(data.message);
@@ -1117,7 +1117,9 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
                   {emailVerifiedDone && (
                     <button
                       type="button"
-                      onClick={() => onNavigate('/login')}
+                      onClick={() =>
+                        onNavigate(`/login?email=${encodeURIComponent(email.trim())}`)
+                      }
                       className="font-semibold underline text-[#0B1F3A]"
                     >
                       Proceed to Sign In
