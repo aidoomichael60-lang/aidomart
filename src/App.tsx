@@ -15,6 +15,7 @@ import { SellersPage } from './pages/SellersPage';
 import { AuthPages } from './pages/AuthPages';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { BuyerDashboard } from './pages/BuyerDashboard';
+import { BuyerOrderDetailPage } from './pages/BuyerOrderDetailPage';
 import { SellerDashboard } from './pages/SellerDashboard';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { TrackOrderPage } from './pages/TrackOrderPage';
@@ -88,7 +89,16 @@ function AppShell() {
     if (pathname === '/track-order' || pathname === '/track') {
       return <TrackOrderPage initialQuery={searchParams} onNavigate={navigate} />;
     }
+    if (pathname.startsWith('/buyer-dashboard/orders/')) {
+      const id = Number(pathname.replace('/buyer-dashboard/orders/', ''));
+      return <BuyerOrderDetailPage orderId={id} onNavigate={navigate} />;
+    }
     if (pathname === '/buyer-dashboard') {
+      const qOrder = searchParams.get('order');
+      const qTab = searchParams.get('tab');
+      if (qOrder && (!qTab || qTab === 'orders')) {
+        return <BuyerOrderDetailPage orderId={Number(qOrder)} onNavigate={navigate} />;
+      }
       return <BuyerDashboard initialQuery={searchParams} onNavigate={navigate} />;
     }
     if (pathname === '/seller-dashboard') {

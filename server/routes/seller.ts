@@ -1235,7 +1235,7 @@ sellerRouter.post('/payments/:orderId/verify', async (req: Request, res: Respons
       userId: row.buyer_id,
       title: `Payment Status: ${row.order_reference}`,
       message: `${row.business_name} updated payment status to: ${mapped.status}.`,
-      link: `/buyer-dashboard?order=${orderId}`,
+      link: `/buyer-dashboard/orders/${orderId}`,
       type: 'payment_update',
     });
   })();

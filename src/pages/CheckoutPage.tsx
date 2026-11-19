@@ -146,7 +146,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                 <div className="flex flex-wrap gap-2 shrink-0">
                   <button
                     type="button"
-                    onClick={() => onNavigate(`/buyer-dashboard?order=${ord.orderId}`)}
+                    onClick={() => onNavigate(`/buyer-dashboard/orders/${ord.orderId}`)}
                     className="px-3.5 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] text-white text-xs font-semibold whitespace-nowrap"
                   >
                     Payment Instructions

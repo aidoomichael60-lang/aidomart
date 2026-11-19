@@ -403,7 +403,7 @@ buyerRouter.post('/orders/checkout', requireAuth, requireRole('buyer'), async (r
           <p>Please open your order page to view the seller's direct payment instructions and include <strong>${escapeHtml(ord.orderReference)}</strong> in your payment narration. Once paid, click <em>"I Have Made Payment"</em>.</p>
         `,
         ctaLabel: 'View Payment Instructions & Order',
-        ctaUrl: `${baseUrl}/buyer-dashboard?order=${ord.orderId}`,
+        ctaUrl: `${baseUrl}/buyer-dashboard/orders/${ord.orderId}`,
       });
       emailResults.push({ target: `buyer:${ord.orderReference}`, delivered: buyerMail.delivered, status: buyerMail.status });
     }

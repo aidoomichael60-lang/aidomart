@@ -1,23 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ArrowRight,
   CheckCircle2,
-  ClipboardCopy,
-  Clock,
-  CreditCard,
-  MapPin,
   MessageSquare,
   MessageSquareWarning,
   Package,
-  Phone,
-  RotateCcw,
   Send,
   Settings,
   Star,
   Tag,
-  Truck,
-  XCircle,
 } from 'lucide-react';
-import { apiRequest } from '../lib/api';
+import { apiRequest, subscribeDataChanged } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import type { BuyerConversation, Complaint, Order } from '../types/marketplace';
 import { PromoManagerPanel } from '../components/PromoManagerPanel';
@@ -51,10 +44,6 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
   });
 
   const [orders, setOrders] = useState<Order[]>([]);
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(() => {
-    const q = initialQuery?.get('order');
-    return q ? Number(q) : null;
-  });
   const [loadingOrders, setLoadingOrders] = useState(true);
 
   // Buyer <-> Seller Messages
@@ -67,29 +56,6 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
   const [chatDraft, setChatDraft] = useState('');
   const [chatSending, setChatSending] = useState(false);
   const [chatErr, setChatErr] = useState('');
-
-  // Payment report form
-  const [showReportForm, setShowReportForm] = useState(false);
-  const [reportMethod, setReportMethod] = useState('');
-  const [reportAmount, setReportAmount] = useState('');
-  const [reportTxRef, setReportTxRef] = useState('');
-  const [reportPaidAt, setReportPaidAt] = useState(() => new Date().toISOString().slice(0, 16));
-  const [reportNotes, setReportNotes] = useState('');
-  const [reportMsg, setReportMsg] = useState('');
-  const [reportErr, setReportErr] = useState('');
-  const [copiedRef, setCopiedRef] = useState('');
-
-  // Buyer Cancel & Refund forms
-  const orderDetailRef = useRef<HTMLDivElement>(null);
-  const [showCancelForm, setShowCancelForm] = useState(false);
-  const [cancelReason, setCancelReason] = useState('');
-  const [cancellingOrder, setCancellingOrder] = useState(false);
-  const [showRefundForm, setShowRefundForm] = useState(false);
-  const [refundReason, setRefundReason] = useState('');
-  const [refundDetails, setRefundDetails] = useState('');
-  const [requestingRefund, setRequestingRefund] = useState(false);
-  const [orderActionMsg, setOrderActionMsg] = useState('');
-  const [orderActionErr, setOrderActionErr] = useState('');
 
   // Reviews
   const [eligibleReviews, setEligibleReviews] = useState<any[]>([]);
@@ -122,9 +88,6 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
       ]);
       const list = ordRes.orders || [];
       setOrders(list);
-      if (list.length > 0 && !selectedOrderId) {
-        setSelectedOrderId(list[0].id);
-      }
       setEligibleReviews(revRes.eligible || []);
       setSubmittedReviews(revRes.submitted || []);
       setComplaints(compRes.complaints || []);
@@ -157,7 +120,6 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
 
   useEffect(() => {
     const qTab = initialQuery?.get('tab');
-    const qOrder = initialQuery?.get('order');
     const qSeller = initialQuery?.get('sellerId');
     if (
       qTab === 'orders' ||
@@ -168,9 +130,6 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
       qTab === 'profile'
     ) {
       setTab(qTab);
-    }
-    if (qOrder) {
-      setSelectedOrderId(Number(qOrder));
     }
     if (qSeller) {
       const sid = Number(qSeller);
@@ -190,7 +149,11 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
       loadBuyerData();
       const qSeller = initialQuery?.get('sellerId');
       loadMessages(qSeller ? Number(qSeller) : null);
+      return subscribeDataChanged(() => {
+        loadBuyerData();
+      });
     }
+    return undefined;
   }, [user?.id, user?.role]);
 
   if (!user || user.role !== 'buyer') {
@@ -209,102 +172,6 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
     );
   }
 
-  const selectedOrder = orders.find((o) => o.id === selectedOrderId) || orders[0] || null;
-
-  const openReportModal = (order: Order) => {
-    const methods: string[] = [];
-    if (order.sellerPaymentSettings?.momoEnabled) {
-      methods.push(`Mobile Money (${order.sellerPaymentSettings.momoProvider})`);
-    }
-    if (order.sellerPaymentSettings?.bankEnabled) {
-      methods.push(`Bank Transfer (${order.sellerPaymentSettings.bankName})`);
-    }
-    setReportMethod(methods[0] || 'Mobile Money');
-    setReportAmount(order.totalAmount.toFixed(2));
-    setReportTxRef('');
-    setReportNotes('');
-    setReportMsg('');
-    setReportErr('');
-    setShowReportForm(true);
-  };
-
-  const handleSubmitPaymentReport = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedOrder) return;
-    setReportMsg('');
-    setReportErr('');
-    try {
-      const res = await apiRequest<{ message: string }>(
-        `/api/buyer/orders/${selectedOrder.id}/report-payment`,
-        {
-          method: 'POST',
-          body: {
-            paymentMethod: reportMethod,
-            amountReported: Number(reportAmount),
-            transactionReference: reportTxRef,
-            reportedPaidAt: new Date(reportPaidAt).toISOString(),
-            buyerNotes: reportNotes,
-          },
-        }
-      );
-      setReportMsg(res.message);
-      setShowReportForm(false);
-      await loadBuyerData();
-    } catch (err: any) {
-      setReportErr(err.message || 'Could not report payment.');
-    }
-  };
-
-  const handleCancelOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedOrder) return;
-    setCancellingOrder(true);
-    setOrderActionMsg('');
-    setOrderActionErr('');
-    try {
-      const res = await apiRequest<{ message: string }>(
-        `/api/buyer/orders/${selectedOrder.id}/cancel`,
-        {
-          method: 'POST',
-          body: { reason: cancelReason },
-        }
-      );
-      setOrderActionMsg(res.message);
-      setShowCancelForm(false);
-      setCancelReason('');
-      await loadBuyerData();
-    } catch (err: any) {
-      setOrderActionErr(err.message || 'Could not cancel order.');
-    } finally {
-      setCancellingOrder(false);
-    }
-  };
-
-  const handleRequestRefund = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedOrder) return;
-    setRequestingRefund(true);
-    setOrderActionMsg('');
-    setOrderActionErr('');
-    try {
-      const res = await apiRequest<{ message: string }>(
-        `/api/buyer/orders/${selectedOrder.id}/request-refund`,
-        {
-          method: 'POST',
-          body: { reason: refundReason, refundDetails },
-        }
-      );
-      setOrderActionMsg(res.message);
-      setShowRefundForm(false);
-      setRefundReason('');
-      setRefundDetails('');
-      await loadBuyerData();
-    } catch (err: any) {
-      setOrderActionErr(err.message || 'Could not submit refund request.');
-    } finally {
-      setRequestingRefund(false);
-    }
-  };
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -456,631 +323,112 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
 
       {/* ORDERS & MANUAL PAYMENTS */}
       {tab === 'orders' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-5 min-w-0 bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-4 py-3.5 border-b border-slate-200 bg-slate-50">
-              <h2 className="font-display text-sm font-bold text-[#0B1F3A]">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="font-display text-base font-bold text-[#0B1F3A]">
                 Your Orders ({orders.length})
               </h2>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Click any order to open its dedicated page with full items, tracking updates, payment instructions, and cancellation or refund options.
+              </p>
             </div>
-            {loadingOrders ? (
-              <div className="p-6 text-sm text-slate-500">Loading orders...</div>
-            ) : orders.length === 0 ? (
-              <div className="p-8 text-center space-y-3">
-                <p className="text-sm text-slate-600">You have not placed any orders yet.</p>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('/shop')}
-                  className="px-4 py-2 rounded-lg bg-[#0B1F3A] text-white text-xs font-semibold"
-                >
-                  Browse Shop
-                </button>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100 max-h-[300px] lg:max-h-[620px] overflow-y-auto">
-                {orders.map((ord) => (
+          </div>
+
+          {loadingOrders ? (
+            <div className="p-6 text-sm text-slate-500">Loading orders...</div>
+          ) : orders.length === 0 ? (
+            <div className="p-10 text-center space-y-3">
+              <p className="text-sm text-slate-600">You have not placed any orders yet.</p>
+              <button
+                type="button"
+                onClick={() => onNavigate('/shop')}
+                className="px-4 py-2 rounded-lg bg-[#0B1F3A] text-white text-xs font-semibold"
+              >
+                Browse Shop
+              </button>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {orders.map((ord) => {
+                const firstItem = ord.items[0];
+                const totalUnits = ord.items.reduce((sum, item) => sum + item.quantity, 0);
+                return (
                   <button
                     key={ord.id}
                     type="button"
-                    onClick={() => {
-                      setSelectedOrderId(ord.id);
-                      setShowReportForm(false);
-                      setShowCancelForm(false);
-                      setShowRefundForm(false);
-                      setOrderActionMsg('');
-                      setOrderActionErr('');
-                      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                        setTimeout(() => {
-                          orderDetailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }, 60);
-                      }
-                    }}
-                    className={`w-full text-left p-3.5 sm:p-4 hover:bg-slate-50 transition-colors space-y-1.5 ${
-                      selectedOrder?.id === ord.id ? 'bg-orange-50/60' : ''
-                    }`}
+                    onClick={() => onNavigate(`/buyer-dashboard/orders/${ord.id}`)}
+                    className="w-full text-left p-4 sm:px-6 sm:py-5 hover:bg-slate-50/90 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-xs font-bold text-[#0B1F3A]">
-                        {ord.orderReference}
-                      </span>
-                      <span className="font-mono text-xs font-bold text-[#F97316] tabular-nums">
+                    <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                      <div className="w-14 h-14 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
+                        {firstItem?.productImage ? (
+                          <SafeAssetImage
+                            src={firstItem.productImage}
+                            alt={firstItem.productTitle}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-400">
+                            <Package className="w-5 h-5" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                          <span className="font-mono text-sm font-bold text-[#0B1F3A]">
+                            {ord.orderReference}
+                          </span>
+                          <span className="text-[11px] text-slate-400 tabular-nums">
+                            {new Date(ord.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+
+                        <p className="text-xs font-semibold text-slate-700 break-words">
+                          {ord.sellerBusinessName} · {ord.fulfillmentMethod}
+                        </p>
+
+                        {firstItem && (
+                          <p className="text-xs text-slate-600 truncate">
+                            {firstItem.productTitle}
+                            {ord.items.length > 1
+                              ? ` + ${ord.items.length - 1} more item${ord.items.length - 1 > 1 ? 's' : ''}`
+                              : ''}{' '}
+                            <span className="text-slate-400">({totalUnits} {totalUnits === 1 ? 'unit' : 'units'})</span>
+                          </p>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-[11px]">
+                          <span className="font-medium text-slate-700">
+                            Order: <strong className="text-[#0B1F3A]">{ord.orderStatus}</strong>
+                          </span>
+                          <span className="text-slate-300">|</span>
+                          <span className="font-medium text-slate-700">
+                            Tracking: <strong className="text-[#0B1F3A]">{ord.trackingStage || 'Order Placed'}</strong>
+                          </span>
+                          <span className="text-slate-300">|</span>
+                          <span className="font-medium text-slate-700">
+                            Payment: <strong className="text-[#F97316]">{ord.payment?.status || 'Not Reported'}</strong>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                      <span className="font-mono text-sm sm:text-base font-bold text-[#F97316] tabular-nums whitespace-nowrap">
                         GHS {ord.totalAmount.toFixed(2)}
                       </span>
-                    </div>
-                    <p className="text-xs font-medium text-slate-700">{ord.sellerBusinessName}</p>
-                    <div className="text-[11px] text-slate-500 flex flex-wrap gap-x-2">
-                      <span>Order: {ord.orderStatus}</span>
-                      <span>·</span>
-                      <span>Payment: {ord.payment?.status || 'Not Reported'}</span>
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#0B1F3A]">
+                        <span>View Order Details</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </span>
                     </div>
                   </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div ref={orderDetailRef} className="lg:col-span-7 min-w-0">
-            {selectedOrder ? (
-              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-5 sm:space-y-6">
-                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="font-mono text-lg font-bold text-[#0B1F3A] break-all">
-                        {selectedOrder.orderReference}
-                      </h2>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard?.writeText(selectedOrder.orderReference);
-                          setCopiedRef(selectedOrder.orderReference);
-                          setTimeout(() => setCopiedRef(''), 2000);
-                        }}
-                        className="inline-flex items-center gap-1 min-h-[34px] px-2.5 py-1 rounded border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50"
-                      >
-                        <ClipboardCopy className="w-3 h-3" />
-                        <span>{copiedRef === selectedOrder.orderReference ? 'Copied' : 'Copy Code'}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onNavigate(`/track-order?code=${encodeURIComponent(selectedOrder.orderReference)}`)
-                        }
-                        className="inline-flex items-center gap-1 min-h-[34px] px-2.5 py-1 rounded bg-[#F97316] hover:bg-[#EA580C] text-white text-[11px] font-semibold"
-                      >
-                        <Truck className="w-3 h-3" />
-                        <span>Track Order</span>
-                      </button>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1 break-words">
-                      Placed {new Date(selectedOrder.createdAt).toLocaleString()} ·{' '}
-                      {selectedOrder.fulfillmentMethod}
-                      {selectedOrder.deliveryAddress ? ` · ${selectedOrder.deliveryAddress}` : ''}
-                    </p>
-                  </div>
-
-                  <div className="sm:text-right space-y-1.5 min-w-0">
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => onNavigate(`/seller/${selectedOrder.sellerId}`)}
-                        className="text-xs font-semibold text-[#0B1F3A] hover:text-[#F97316] break-words text-left sm:text-right"
-                      >
-                        {selectedOrder.sellerBusinessName}
-                      </button>
-                      {selectedOrder.sellerVerifiedBadge && (
-                        <div className="mt-1">
-                          <VerifiedBadge />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap sm:justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenChatWithSeller(selectedOrder.sellerId)}
-                        className="inline-flex items-center gap-1 min-h-[36px] px-2.5 py-1 rounded bg-[#0B1F3A] hover:bg-[#122E53] text-white text-[11px] font-semibold"
-                      >
-                        <MessageSquare className="w-3 h-3" />
-                        <span>Message Seller</span>
-                      </button>
-                      {buildWhatsAppUrl(
-                        selectedOrder.sellerPhone,
-                        `Hello ${selectedOrder.sellerBusinessName}, following up on AIDOMART order ${selectedOrder.orderReference}.`
-                      ) && (
-                        <a
-                          href={
-                            buildWhatsAppUrl(
-                              selectedOrder.sellerPhone,
-                              `Hello ${selectedOrder.sellerBusinessName}, following up on AIDOMART order ${selectedOrder.orderReference}.`
-                            )!
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 min-h-[36px] px-2.5 py-1 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-[11px] font-semibold"
-                        >
-                          <WhatsAppIcon className="w-3.5 h-3.5 shrink-0" />
-                          <span>WhatsApp</span>
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Separate Order Status, Tracking Stage & Payment Status */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <p className="text-[11px] font-semibold text-slate-500">Order Status</p>
-                    <p className="text-xs sm:text-sm font-bold text-[#0B1F3A] mt-0.5">
-                      {selectedOrder.orderStatus}
-                    </p>
-                  </div>
-                  <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <p className="text-[11px] font-semibold text-slate-500">Delivery Tracking</p>
-                    <p className="text-xs sm:text-sm font-bold text-[#0B1F3A] mt-0.5">
-                      {selectedOrder.trackingStage || 'Order Placed'}
-                    </p>
-                  </div>
-                  <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200">
-                    <p className="text-[11px] font-semibold text-slate-500">Manual Payment</p>
-                    <p className="text-xs sm:text-sm font-bold text-[#F97316] mt-0.5">
-                      {selectedOrder.payment?.status || 'Not Reported'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Live Seller Tracking Details & History */}
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-display text-sm font-bold text-[#0B1F3A] flex items-center gap-1.5">
-                      <Truck className="w-4 h-4 text-[#F97316]" />
-                      <span>Seller Tracking & Delivery Progress</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onNavigate(`/track-order?code=${encodeURIComponent(selectedOrder.orderReference)}`)
-                      }
-                      className="text-xs font-semibold text-[#F97316] hover:underline"
-                    >
-                      Open Full Tracker →
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
-                    {selectedOrder.trackingLocation && (
-                      <p className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-[#F97316] shrink-0" />
-                        <span>Location: {selectedOrder.trackingLocation}</span>
-                      </p>
-                    )}
-                    {selectedOrder.estimatedDelivery && (
-                      <p className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-[#F97316] shrink-0" />
-                        <span>ETA: {selectedOrder.estimatedDelivery}</span>
-                      </p>
-                    )}
-                    {selectedOrder.courierContact && (
-                      <p className="flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-[#F97316] shrink-0" />
-                        <span>Rider / Courier: {selectedOrder.courierContact}</span>
-                      </p>
-                    )}
-                    {selectedOrder.trackingNote && (
-                      <p className="sm:col-span-2 text-slate-600">{selectedOrder.trackingNote}</p>
-                    )}
-                  </div>
-
-                  {selectedOrder.trackingEvents && selectedOrder.trackingEvents.length > 0 && (
-                    <div className="bg-white border border-slate-200 rounded-lg divide-y divide-slate-100">
-                      {selectedOrder.trackingEvents.slice(0, 4).map((ev) => (
-                        <div key={ev.id} className="px-3 py-2 flex items-start justify-between gap-2 min-w-0">
-                          <div className="min-w-0 flex-1 break-words">
-                            <span className="font-semibold text-[#0B1F3A]">
-                              {ev.stage}
-                              {ev.location ? ` · ${ev.location}` : ''}
-                            </span>
-                            {ev.note && <p className="text-slate-600 mt-0.5 break-words">{ev.note}</p>}
-                          </div>
-                          <span className="text-[10px] text-slate-400 shrink-0 tabular-nums">
-                            {new Date(ev.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Order Items */}
-                <div className="space-y-2">
-                  <h3 className="text-xs font-semibold text-slate-500">Order Items</h3>
-                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
-                    {selectedOrder.items.map((item) => (
-                      <div key={item.id} className="px-4 py-2.5 flex items-start justify-between gap-3 text-xs min-w-0">
-                        <div className="min-w-0 flex-1 break-words">
-                          <span className="font-semibold text-slate-900">{item.productTitle}</span>
-                          {item.selectedVariation && (
-                            <span className="text-slate-500"> ({item.selectedVariation})</span>
-                          )}
-                          <span className="text-slate-500"> × {item.quantity}</span>
-                        </div>
-                        <span className="font-mono font-semibold tabular-nums shrink-0 whitespace-nowrap">
-                          GHS {item.lineTotal.toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex justify-between gap-2 text-sm font-bold text-[#0B1F3A] pt-2">
-                    <span>Exact Amount Payable</span>
-                    <span className="font-mono tabular-nums shrink-0 whitespace-nowrap">
-                      GHS {selectedOrder.totalAmount.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Manual Seller Payment Instructions */}
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-[#F97316]" />
-                    <h3 className="font-display text-sm font-bold text-[#0B1F3A]">
-                      Direct Manual Payment Instructions
-                    </h3>
-                  </div>
-                  <p className="text-xs text-slate-700">
-                    Pay <strong>GHS {selectedOrder.totalAmount.toFixed(2)}</strong> directly to{' '}
-                    <strong>{selectedOrder.sellerBusinessName}</strong> using one of their configured methods below. Always enter{' '}
-                    <strong className="font-mono">{selectedOrder.orderReference}</strong> as your payment reference/narration.
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {selectedOrder.sellerPaymentSettings?.momoEnabled && (
-                      <div className="p-3 rounded-lg bg-white border border-slate-200 text-xs space-y-1 min-w-0 break-words">
-                        <p className="font-bold text-[#0B1F3A]">
-                          Mobile Money ({selectedOrder.sellerPaymentSettings.momoProvider})
-                        </p>
-                        <p>Account Name: {selectedOrder.sellerPaymentSettings.momoAccountName}</p>
-                        <p className="font-mono font-semibold tabular-nums break-all">
-                          Number: {selectedOrder.sellerPaymentSettings.momoNumber}
-                        </p>
-                        {selectedOrder.sellerPaymentSettings.momoInstructions && (
-                          <p className="text-slate-600 pt-1 break-words">
-                            {selectedOrder.sellerPaymentSettings.momoInstructions}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {selectedOrder.sellerPaymentSettings?.bankEnabled && (
-                      <div className="p-3 rounded-lg bg-white border border-slate-200 text-xs space-y-1 min-w-0 break-words">
-                        <p className="font-bold text-[#0B1F3A]">
-                          Bank Transfer ({selectedOrder.sellerPaymentSettings.bankName})
-                        </p>
-                        <p>Account Name: {selectedOrder.sellerPaymentSettings.bankAccountName}</p>
-                        <p className="font-mono font-semibold tabular-nums break-all">
-                          Account No: {selectedOrder.sellerPaymentSettings.bankAccountNumber}
-                        </p>
-                        {selectedOrder.sellerPaymentSettings.bankBranch && (
-                          <p>Branch: {selectedOrder.sellerPaymentSettings.bankBranch}</p>
-                        )}
-                        {selectedOrder.sellerPaymentSettings.bankInstructions && (
-                          <p className="text-slate-600 pt-1 break-words">
-                            {selectedOrder.sellerPaymentSettings.bankInstructions}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {!selectedOrder.sellerPaymentSettings?.momoEnabled &&
-                      !selectedOrder.sellerPaymentSettings?.bankEnabled && (
-                        <p className="text-xs text-amber-700 col-span-full">
-                          This seller has not configured Mobile Money or Bank Transfer details yet. Please contact the seller or administrator before sending payment.
-                        </p>
-                      )}
-                  </div>
-
-                  {selectedOrder.payment?.status !== 'Payment Confirmed' &&
-                    selectedOrder.orderStatus !== 'Cancelled' && (
-                      <div className="pt-2">
-                        {!showReportForm ? (
-                          <button
-                            type="button"
-                            onClick={() => openReportModal(selectedOrder)}
-                            className="min-h-[42px] px-4 py-2.5 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold"
-                          >
-                            I Have Made Payment
-                          </button>
-                        ) : (
-                          <form
-                            onSubmit={handleSubmitPaymentReport}
-                            className="bg-white border border-slate-300 rounded-lg p-4 space-y-3 mt-2"
-                          >
-                            <h4 className="text-xs font-bold text-[#0B1F3A]">
-                              Report Manual Payment (Awaiting Seller Verification)
-                            </h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div>
-                                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                                  Payment Method Used *
-                                </label>
-                                <select
-                                  value={reportMethod}
-                                  onChange={(e) => setReportMethod(e.target.value)}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
-                                >
-                                  {selectedOrder.sellerPaymentSettings?.momoEnabled && (
-                                    <option
-                                      value={`Mobile Money (${selectedOrder.sellerPaymentSettings.momoProvider})`}
-                                    >
-                                      Mobile Money ({selectedOrder.sellerPaymentSettings.momoProvider})
-                                    </option>
-                                  )}
-                                  {selectedOrder.sellerPaymentSettings?.bankEnabled && (
-                                    <option
-                                      value={`Bank Transfer (${selectedOrder.sellerPaymentSettings.bankName})`}
-                                    >
-                                      Bank Transfer ({selectedOrder.sellerPaymentSettings.bankName})
-                                    </option>
-                                  )}
-                                </select>
-                              </div>
-                              <div>
-                                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                                  Amount Paid (GHS) *
-                                </label>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  required
-                                  value={reportAmount}
-                                  onChange={(e) => setReportAmount(e.target.value)}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                                  Transaction Reference / ID
-                                </label>
-                                <input
-                                  type="text"
-                                  value={reportTxRef}
-                                  onChange={(e) => setReportTxRef(e.target.value)}
-                                  placeholder="MoMo / Bank Transaction ID"
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                                  Date & Time Paid
-                                </label>
-                                <input
-                                  type="datetime-local"
-                                  value={reportPaidAt}
-                                  onChange={(e) => setReportPaidAt(e.target.value)}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
-                                />
-                              </div>
-                            </div>
-                            <div>
-                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                                Additional Notes
-                              </label>
-                              <input
-                                type="text"
-                                value={reportNotes}
-                                onChange={(e) => setReportNotes(e.target.value)}
-                                placeholder="Sender name or number used..."
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
-                              />
-                            </div>
-                            {reportErr && <p className="text-xs text-red-600">{reportErr}</p>}
-                            {reportMsg && <p className="text-xs text-emerald-700">{reportMsg}</p>}
-                            <div className="flex gap-2">
-                              <button
-                                type="submit"
-                                className="px-4 py-2 rounded-lg bg-[#0B1F3A] text-white text-xs font-semibold"
-                              >
-                                Submit Payment Report
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setShowReportForm(false)}
-                                className="px-3 py-2 rounded-lg border border-slate-300 text-xs"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </form>
-                        )}
-                      </div>
-                    )}
-
-                  {selectedOrder.payment?.status === 'Refund Pending' && (
-                    <div className="p-3 rounded-lg bg-amber-50 border border-amber-300 text-xs text-amber-950">
-                      <strong>Refund Pending:</strong> The seller has been notified of your refund request and will return funds directly to your account.
-                    </div>
-                  )}
-                  {selectedOrder.payment?.status === 'Refunded' && (
-                    <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-300 text-xs text-emerald-950">
-                      <strong>Refunded:</strong> The seller marked your refund completed.
-                    </div>
-                  )}
-
-                  {/* Buyer Order Cancellation & Refund Request Actions */}
-                  {(() => {
-                    const canCancel = ['Pending Seller Confirmation', 'Confirmed', 'Processing'].includes(
-                      selectedOrder.orderStatus
-                    );
-                    const canRequestRefund = [
-                      'Payment Reported — Awaiting Seller Verification',
-                      'Payment Confirmed',
-                      'Payment Amount Mismatch',
-                      'Payment Under Review',
-                      'Payment Not Received',
-                    ].includes(selectedOrder.payment?.status || '');
-
-                    if (!canCancel && !canRequestRefund && !orderActionMsg && !orderActionErr) {
-                      return null;
-                    }
-
-                    return (
-                      <div className="pt-3 border-t border-slate-200 space-y-3">
-                        <div className="flex flex-wrap gap-2">
-                          {canCancel && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShowCancelForm((v) => !v);
-                                setShowRefundForm(false);
-                                setOrderActionErr('');
-                              }}
-                              className="inline-flex items-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-lg border border-red-300 bg-white hover:bg-red-50 text-red-700 text-xs font-semibold"
-                            >
-                              <XCircle className="w-3.5 h-3.5" />
-                              <span>Cancel Order</span>
-                            </button>
-                          )}
-                          {canRequestRefund && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShowRefundForm((v) => !v);
-                                setShowCancelForm(false);
-                                setOrderActionErr('');
-                              }}
-                              className="inline-flex items-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-lg border border-amber-400 bg-white hover:bg-amber-50 text-amber-900 text-xs font-semibold"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                              <span>Request Refund</span>
-                            </button>
-                          )}
-                        </div>
-
-                        {orderActionMsg && (
-                          <p className="text-xs text-emerald-700 font-medium">{orderActionMsg}</p>
-                        )}
-                        {orderActionErr && (
-                          <p className="text-xs text-red-700 font-medium">{orderActionErr}</p>
-                        )}
-
-                        {showCancelForm && canCancel && (
-                          <form
-                            onSubmit={handleCancelOrder}
-                            className="bg-white border border-red-200 rounded-lg p-3.5 space-y-3"
-                          >
-                            <p className="text-xs font-bold text-red-800">
-                              Cancel Order {selectedOrder.orderReference}
-                            </p>
-                            <p className="text-[11px] text-slate-600">
-                              {canRequestRefund
-                                ? 'Because you already reported or made payment, cancelling will also set your payment to Refund Pending and notify the seller.'
-                                : 'Cancelling restores item stock automatically and notifies the seller.'}
-                            </p>
-                            <input
-                              type="text"
-                              value={cancelReason}
-                              onChange={(e) => setCancelReason(e.target.value)}
-                              placeholder="Reason for cancellation (optional)..."
-                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
-                            />
-                            <div className="flex flex-wrap gap-2">
-                              <button
-                                type="submit"
-                                disabled={cancellingOrder}
-                                className="px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-xs font-semibold"
-                              >
-                                {cancellingOrder ? 'Cancelling...' : 'Confirm Cancel Order'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setShowCancelForm(false)}
-                                className="px-3 py-2 rounded-lg border border-slate-300 text-xs text-slate-700"
-                              >
-                                Keep Order
-                              </button>
-                            </div>
-                          </form>
-                        )}
-
-                        {showRefundForm && canRequestRefund && (
-                          <form
-                            onSubmit={handleRequestRefund}
-                            className="bg-white border border-amber-300 rounded-lg p-3.5 space-y-3"
-                          >
-                            <p className="text-xs font-bold text-[#0B1F3A]">
-                              Request Manual Refund from {selectedOrder.sellerBusinessName}
-                            </p>
-                            <div>
-                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                                Reason for Refund *
-                              </label>
-                              <textarea
-                                rows={2}
-                                required
-                                value={refundReason}
-                                onChange={(e) => setRefundReason(e.target.value)}
-                                placeholder="e.g. Changed my mind, wrong size, item delayed..."
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                                Your MoMo Number or Bank Details for Refund (Recommended)
-                              </label>
-                              <input
-                                type="text"
-                                value={refundDetails}
-                                onChange={(e) => setRefundDetails(e.target.value)}
-                                placeholder="e.g. MTN MoMo 0240000000 (Name)"
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
-                              />
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              <button
-                                type="submit"
-                                disabled={requestingRefund}
-                                className="px-3.5 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] disabled:opacity-60 text-white text-xs font-semibold"
-                              >
-                                {requestingRefund ? 'Submitting...' : 'Submit Refund Request'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setShowRefundForm(false)}
-                                className="px-3 py-2 rounded-lg border border-slate-300 text-xs text-slate-700"
-                              >
-                                Close
-                              </button>
-                            </div>
-                          </form>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Payment History Log */}
-                {selectedOrder.payment?.history?.length > 0 && (
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-semibold text-slate-500">Payment History</h3>
-                    <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg text-xs">
-                      {selectedOrder.payment.history.map((h) => (
-                        <div key={h.id} className="px-3.5 py-2.5 flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-3">
-                          <div className="min-w-0">
-                            <span className="font-semibold text-[#0B1F3A]">{h.action}</span>
-                            {h.notes && <p className="text-slate-600 mt-0.5 break-words">{h.notes}</p>}
-                          </div>
-                          <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
-                            {new Date(h.createdAt).toLocaleString()}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-500">
-                Select an order on the left to view payment instructions and status details.
-              </div>
-            )}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
