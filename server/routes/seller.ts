@@ -1022,6 +1022,16 @@ sellerRouter.patch('/orders/:id/status', async (req: Request, res: Response) => 
   const derivedStage = statusToStage[nextStatus] || nextStatus;
 
   db.transaction(() => {
+    if (nextStatus === 'Cancelled' && order.order_status !== 'Cancelled') {
+      const orderItems = db
+        .prepare(`SELECT product_id, quantity FROM order_items WHERE order_id = ?`)
+        .all(orderId) as Array<{ product_id: number; quantity: number }>;
+      const restoreStock = db.prepare(`UPDATE products SET stock = stock + ?, updated_at = datetime('now') WHERE id = ?`);
+      for (const oi of orderItems) {
+        restoreStock.run(oi.quantity, oi.product_id);
+      }
+    }
+
     db.prepare(
       `UPDATE orders
        SET order_status = ?, tracking_stage = ?, updated_at = datetime('now')

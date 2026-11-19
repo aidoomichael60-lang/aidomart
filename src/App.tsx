@@ -35,7 +35,7 @@ function AppShell() {
     window.history.pushState({}, '', to);
     setLocationUrl(pathOnly || '/');
     if (!to.includes('#')) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo(0, 0);
     }
   }, []);
 
@@ -48,7 +48,13 @@ function AppShell() {
       return <HomePage onNavigate={navigate} />;
     }
     if (pathname === '/shop') {
-      return <ShopPage initialCategory={searchParams.get('category') || ''} onNavigate={navigate} />;
+      return (
+        <ShopPage
+          initialCategory={searchParams.get('category') || ''}
+          initialQuery={searchParams.get('q') || ''}
+          onNavigate={navigate}
+        />
+      );
     }
     if (pathname === '/categories') {
       return <CategoriesPage onNavigate={navigate} />;
@@ -100,7 +106,7 @@ function AppShell() {
       <Navbar currentPath={pathname} onNavigate={navigate} />
       <NotificationPopups onNavigate={navigate} />
       <CartDrawer onNavigate={navigate} />
-      <main className="flex-1 w-full min-w-0 overflow-x-hidden">{renderRoute()}</main>
+      <main className="flex-1 w-full min-w-0 overflow-x-clip">{renderRoute()}</main>
       <Footer onNavigate={navigate} />
     </div>
   );

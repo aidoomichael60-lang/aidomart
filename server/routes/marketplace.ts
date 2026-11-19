@@ -173,9 +173,16 @@ marketplaceRouter.get('/products', (req: Request, res: Response) => {
     params.push(sellerId);
   }
   if (q) {
-    sql += ` AND (p.title LIKE ? OR p.description LIKE ? OR sp.business_name LIKE ? OR c.name LIKE ?)`;
-    const pattern = `%${q}%`;
-    params.push(pattern, pattern, pattern, pattern);
+    const terms = q
+      .split(/\s+/)
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .slice(0, 5);
+    for (const term of terms) {
+      sql += ` AND (p.title LIKE ? OR p.description LIKE ? OR sp.business_name LIKE ? OR c.name LIKE ? OR p.sizes_json LIKE ? OR p.colors_json LIKE ? OR p.variations_json LIKE ? OR sp.location_city LIKE ?)`;
+      const pattern = `%${term}%`;
+      params.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern);
+    }
   }
 
   if (sort === 'price_asc') {
@@ -188,6 +195,84 @@ marketplaceRouter.get('/products', (req: Request, res: Response) => {
 
   const rows = db.prepare(sql).all(...params) as Record<string, any>[];
   return res.json({ products: rows.map(formatProductRow) });
+});
+
+marketplaceRouter.post('/cart-check', (req: Request, res: Response) => {
+  const rawIds = Array.isArray(req.body?.productIds) ? req.body.productIds : [];
+  const uniqueIds: number[] = Array.from(
+    new Set<number>(rawIds.map((v: any) => Number(v)).filter((n: number) => Number.isFinite(n) && n > 0))
+  ).slice(0, 100);
+
+  if (uniqueIds.length === 0) {
+    return res.json({ items: [] });
+  }
+
+  const placeholders = uniqueIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(
+      `SELECT p.id, p.title, p.price, p.stock, p.published, p.moderated_reason, p.images_json,
+              c.active AS category_active,
+              sp.application_status AS seller_status,
+              u.account_status AS seller_account_status
+       FROM products p
+       JOIN categories c ON c.id = p.category_id
+       JOIN seller_profiles sp ON sp.user_id = p.seller_id
+       JOIN users u ON u.id = p.seller_id
+       WHERE p.id IN (${placeholders})`
+    )
+    .all(...uniqueIds) as Record<string, any>[];
+
+  const rowMap = new Map<number, Record<string, any>>();
+  for (const r of rows) {
+    rowMap.set(Number(r.id), r);
+  }
+
+  const items = uniqueIds.map((id) => {
+    const r = rowMap.get(id);
+    if (!r) {
+      return {
+        id,
+        exists: false,
+        available: false,
+        published: false,
+        stock: 0,
+        price: 0,
+        title: '',
+        image: '',
+        reason: 'This item has been removed and is no longer available.',
+      };
+    }
+
+    const sellerActive =
+      r.seller_status === 'Approved' &&
+      r.seller_account_status === 'Active' &&
+      Boolean(r.category_active);
+    const isPublished = Boolean(r.published) && !r.moderated_reason;
+    const stock = Math.max(0, Number(r.stock || 0));
+    const available = sellerActive && isPublished && stock > 0;
+    const images = JSON.parse(r.images_json || '[]') as string[];
+
+    let reason = '';
+    if (!sellerActive || !isPublished) {
+      reason = 'This item is no longer available for purchase.';
+    } else if (stock <= 0) {
+      reason = 'Sold out — this item is no longer available.';
+    }
+
+    return {
+      id,
+      exists: true,
+      available,
+      published: isPublished,
+      stock,
+      price: Number(r.price),
+      title: r.title,
+      image: images[0] || '',
+      reason,
+    };
+  });
+
+  return res.json({ items });
 });
 
 marketplaceRouter.get('/products/:id', (req: Request, res: Response) => {

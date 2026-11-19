@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, ChevronLeft, ChevronRight, ShieldCheck, Store, Truck, Wallet } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, Search, ShieldCheck, Store, Truck, Wallet } from 'lucide-react';
 import { AIDOMART_ASSETS } from '../constants/assets';
 import { apiRequest, subscribeDataChanged } from '../lib/api';
 import type { MarketplaceCategory, Product, SellerPromotion } from '../types/marketplace';
@@ -34,6 +34,13 @@ export function HomePage({ onNavigate }: HomePageProps) {
   const [approvedSellers, setApprovedSellers] = useState<ApprovedSellerSummary[]>([]);
   const [promotions, setPromotions] = useState<SellerPromotion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [homeSearch, setHomeSearch] = useState('');
+
+  const handleHomeSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = homeSearch.trim();
+    onNavigate(q ? `/shop?q=${encodeURIComponent(q)}` : '/shop');
+  };
 
   const loadHome = useCallback(async () => {
     try {
@@ -93,7 +100,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
   const countBySlug = new Map(categories.map((c) => [c.slug, c.productCount ?? 0]));
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden">
+    <div className="w-full max-w-full overflow-x-clip">
       {/* 1. Full-width Homepage Carousel directly beneath Navigation */}
       <section
         aria-label="AIDOMART Highlights"
@@ -186,6 +193,31 @@ export function HomePage({ onNavigate }: HomePageProps) {
               }`}
             />
           ))}
+        </div>
+      </section>
+
+      {/* Quick Marketplace Search Bar */}
+      <section className="bg-white border-b border-slate-200 py-3 sm:py-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6">
+          <form onSubmit={handleHomeSearch} className="flex gap-2 max-w-2xl mx-auto">
+            <div className="relative flex-1 min-w-0">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                value={homeSearch}
+                onChange={(e) => setHomeSearch(e.target.value)}
+                placeholder="Search products, sellers, sizes, or colors..."
+                aria-label="Search marketplace products"
+                className="w-full min-h-[42px] pl-10 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#F97316]"
+              />
+            </div>
+            <button
+              type="submit"
+              className="min-h-[42px] px-4 sm:px-5 rounded-lg bg-[#0B1F3A] hover:bg-[#F97316] text-white text-xs sm:text-sm font-semibold transition-colors shrink-0"
+            >
+              Search
+            </button>
+          </form>
         </div>
       </section>
 

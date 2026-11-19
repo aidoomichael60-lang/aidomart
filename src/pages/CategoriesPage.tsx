@@ -83,19 +83,33 @@ export function CategoriesPage({ onNavigate }: CategoriesPageProps) {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
           {currentAssetCat.images.map((imgPath, i) => (
-            <div
+            <button
               key={imgPath}
-              className="h-24 sm:h-36 rounded-lg overflow-hidden border border-slate-200 bg-slate-100"
+              type="button"
+              onClick={() => onNavigate(`/shop?category=${currentAssetCat.slug}`)}
+              title={`Shop ${currentAssetCat.name}`}
+              className="group h-24 sm:h-36 rounded-lg overflow-hidden border border-slate-200 hover:border-[#F97316] bg-slate-100 text-left transition-colors"
             >
               <SafeAssetImage
                 src={imgPath}
                 alt={`${currentAssetCat.name} category visual ${i + 1}`}
                 fallbackTitle={`${currentAssetCat.name} #${i + 1}`}
                 fallbackSubtitle={imgPath.split('/').pop()}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
               />
-            </div>
+            </button>
           ))}
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={() => onNavigate(`/shop?category=${currentAssetCat.slug}`)}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#F97316] text-white text-xs font-semibold transition-colors"
+          >
+            <span>Browse All {currentAssetCat.name} in Shop</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
 

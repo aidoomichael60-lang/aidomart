@@ -12,6 +12,3 @@ coverage/
 *.sqlite*
 uploads/
 
-
-# Local Netlify folder
-.netlify

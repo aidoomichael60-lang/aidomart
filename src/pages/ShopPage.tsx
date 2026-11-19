@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight, Search, Store } from 'lucide-react';
 import { apiRequest, subscribeDataChanged } from '../lib/api';
 import type { MarketplaceCategory, Product } from '../types/marketplace';
@@ -7,6 +7,7 @@ import { SafeAssetImage } from '../components/SafeAssetImage';
 
 interface ShopPageProps {
   initialCategory?: string;
+  initialQuery?: string;
   onNavigate: (path: string) => void;
 }
 
@@ -19,18 +20,32 @@ interface ShopSellerChip {
   productCount: number;
 }
 
-export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
+export function ShopPage({ initialCategory = '', initialQuery = '', onNavigate }: ShopPageProps) {
   const [categories, setCategories] = useState<MarketplaceCategory[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [sellers, setSellers] = useState<ShopSellerChip[]>([]);
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
   const [sort, setSort] = useState('newest');
   const [loading, setLoading] = useState(true);
+  const hasLoadedOnce = useRef(false);
 
   useEffect(() => {
     setSelectedCategory(initialCategory);
   }, [initialCategory]);
+
+  useEffect(() => {
+    setSearchQuery(initialQuery);
+    setDebouncedQuery(initialQuery);
+  }, [initialQuery]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 180);
+    return () => window.clearTimeout(t);
+  }, [searchQuery]);
 
   const loadCategoriesAndSellers = useCallback(async () => {
     try {
@@ -46,10 +61,12 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
   }, []);
 
   const loadProducts = useCallback(async () => {
-    setLoading(true);
+    if (!hasLoadedOnce.current) {
+      setLoading(true);
+    }
     const params = new URLSearchParams();
     if (selectedCategory) params.set('category', selectedCategory);
-    if (searchQuery.trim()) params.set('q', searchQuery.trim());
+    if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim());
     if (sort) params.set('sort', sort);
 
     try {
@@ -60,9 +77,10 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
     } catch {
       setProducts([]);
     } finally {
+      hasLoadedOnce.current = true;
       setLoading(false);
     }
-  }, [selectedCategory, searchQuery, sort]);
+  }, [selectedCategory, debouncedQuery, sort]);
 
   useEffect(() => {
     loadCategoriesAndSellers();
@@ -79,6 +97,11 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
     });
   }, [loadCategoriesAndSellers, loadProducts]);
 
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setDebouncedQuery(searchQuery);
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 sm:py-10 space-y-5 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-5">
@@ -91,16 +114,24 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search products or sellers..."
-              className="pl-9 pr-4 py-2 w-full sm:w-64 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F97316]"
-            />
+        <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search products, size, color, seller..."
+                className="pl-9 pr-4 py-2 w-full sm:w-64 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F97316]"
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-3.5 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#F97316] text-white text-xs font-semibold transition-colors shrink-0"
+            >
+              Search
+            </button>
           </div>
 
           <select
@@ -113,7 +144,7 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
             <option value="price_asc">Price: Low to High</option>
             <option value="price_desc">Price: High to Low</option>
           </select>
-        </div>
+        </form>
       </div>
 
       {/* Direct Seller Profiles Strip */}
@@ -193,6 +224,25 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
         ))}
       </div>
 
+      {debouncedQuery.trim() && (
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3.5 py-2 text-xs text-slate-800">
+          <span>
+            Showing results for <strong>"{debouncedQuery.trim()}"</strong> ({products.length}{' '}
+            {products.length === 1 ? 'product' : 'products'})
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery('');
+              setDebouncedQuery('');
+            }}
+            className="font-semibold text-[#F97316] hover:underline"
+          >
+            Clear search
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
           {[1, 2, 3, 4, 5, 6].map((n) => (
@@ -216,6 +266,7 @@ export function ShopPage({ initialCategory = '', onNavigate }: ShopPageProps) {
               onClick={() => {
                 setSelectedCategory('');
                 setSearchQuery('');
+                setDebouncedQuery('');
               }}
               className="px-4 py-2 rounded-lg bg-[#0B1F3A] text-white text-xs font-semibold"
             >

@@ -549,6 +549,221 @@ buyerRouter.post('/buyer/orders/:id/report-payment', requireAuth, requireRole('b
   });
 });
 
+buyerRouter.post('/buyer/orders/:id/cancel', requireAuth, requireRole('buyer'), async (req: Request, res: Response) => {
+  const orderId = Number(req.params.id);
+  const buyer = req.authUser!;
+  const reason = sanitizeText(req.body?.reason, 400);
+
+  const order = db
+    .prepare(
+      `SELECT o.*, sp.business_name, u.email AS seller_email
+       FROM orders o
+       JOIN seller_profiles sp ON sp.user_id = o.seller_id
+       JOIN users u ON u.id = o.seller_id
+       WHERE o.id = ? AND o.buyer_id = ?`
+    )
+    .get(orderId, buyer.id) as Record<string, any> | undefined;
+
+  if (!order) {
+    return res.status(404).json({ error: 'Order not found.' });
+  }
+  if (order.order_status === 'Cancelled') {
+    return res.status(400).json({ error: 'This order is already cancelled.' });
+  }
+  if (order.order_status === 'Completed') {
+    return res.status(400).json({
+      error: 'Completed orders cannot be cancelled directly. Use Request Refund or submit a complaint if there is an issue.',
+    });
+  }
+  if (order.order_status === 'Ready for Pickup / Dispatch') {
+    return res.status(400).json({
+      error: 'This order is already dispatched / ready for pickup. Use Request Refund or message the seller directly.',
+    });
+  }
+
+  const payment = db.prepare(`SELECT id, status, buyer_notes FROM payments WHERE order_id = ?`).get(orderId) as
+    | { id: number; status: string; buyer_notes: string | null }
+    | undefined;
+
+  const hasPaidOrReported =
+    payment &&
+    ['Payment Reported — Awaiting Seller Verification', 'Payment Confirmed', 'Payment Amount Mismatch', 'Payment Under Review'].includes(
+      payment.status
+    );
+  const nextPaymentStatus = hasPaidOrReported ? 'Refund Pending' : 'Payment Cancelled';
+  const trackingNote = reason ? `Cancelled by buyer: ${reason}` : 'Cancelled by buyer before dispatch.';
+
+  db.transaction(() => {
+    const orderItems = db
+      .prepare(`SELECT product_id, quantity FROM order_items WHERE order_id = ?`)
+      .all(orderId) as Array<{ product_id: number; quantity: number }>;
+
+    const restoreStock = db.prepare(`UPDATE products SET stock = stock + ?, updated_at = datetime('now') WHERE id = ?`);
+    for (const oi of orderItems) {
+      restoreStock.run(oi.quantity, oi.product_id);
+    }
+
+    db.prepare(
+      `UPDATE orders
+       SET order_status = 'Cancelled', tracking_stage = 'Cancelled', tracking_note = ?, updated_at = datetime('now')
+       WHERE id = ?`
+    ).run(trackingNote, orderId);
+
+    db.prepare(
+      `INSERT INTO order_tracking_events (order_id, stage, location, note, actor_user_id)
+       VALUES (?, 'Cancelled', '', ?, ?)`
+    ).run(orderId, trackingNote, buyer.id);
+
+    if (payment) {
+      const updatedNotes = reason
+        ? [payment.buyer_notes, `Cancellation reason: ${reason}`].filter(Boolean).join(' | ').slice(0, 500)
+        : payment.buyer_notes;
+
+      db.prepare(
+        `UPDATE payments SET status = ?, buyer_notes = ?, updated_at = datetime('now') WHERE id = ?`
+      ).run(nextPaymentStatus, updatedNotes, payment.id);
+
+      db.prepare(
+        `INSERT INTO payment_history (payment_id, action, status, actor_user_id, notes)
+         VALUES (?, 'Buyer Cancelled Order', ?, ?, ?)`
+      ).run(
+        payment.id,
+        nextPaymentStatus,
+        buyer.id,
+        hasPaidOrReported
+          ? `Buyer cancelled order after payment (${reason || 'No reason specified'}). Refund marked pending.`
+          : `Buyer cancelled unpaid order (${reason || 'No reason specified'}).`
+      );
+    }
+
+    createNotification({
+      userId: order.seller_id,
+      title: `Order ${order.order_reference} Cancelled by Buyer`,
+      message: hasPaidOrReported
+        ? `${buyer.fullName} cancelled order ${order.order_reference} and requires a refund.${reason ? ` Reason: ${reason}` : ''}`
+        : `${buyer.fullName} cancelled order ${order.order_reference}. Stock was automatically restored.${reason ? ` Reason: ${reason}` : ''}`,
+      link: hasPaidOrReported ? `/seller-dashboard?tab=payments` : `/seller-dashboard?tab=orders`,
+      type: 'order_cancelled',
+    });
+  })();
+
+  const baseUrl = getAppBaseUrl(req);
+  await sendTransactionalEmail({
+    toEmail: order.seller_email,
+    toName: order.business_name,
+    subject: `Order ${order.order_reference} Cancelled by Buyer`,
+    eventType: 'seller_order_cancelled',
+    headline: `Order Cancelled: ${order.order_reference}`,
+    bodyHtml: `
+      <p><strong>${escapeHtml(buyer.fullName)}</strong> has cancelled order <strong>${escapeHtml(order.order_reference)}</strong>.</p>
+      ${reason ? `<p><strong>Reason:</strong> ${escapeHtml(reason)}</p>` : ''}
+      <p>${
+        hasPaidOrReported
+          ? 'Because payment was already reported or confirmed, this order has been marked <strong>Refund Pending</strong>. Please review and return the buyer’s funds.'
+          : 'Item stock has been automatically restored to your inventory.'
+      }</p>
+    `,
+    ctaLabel: hasPaidOrReported ? 'Review Refund in Payments' : 'View Orders in Dashboard',
+    ctaUrl: `${baseUrl}/seller-dashboard?tab=${hasPaidOrReported ? 'payments' : 'orders'}`,
+  });
+
+  return res.json({
+    message: hasPaidOrReported
+      ? 'Order cancelled and refund request sent to the seller.'
+      : 'Order cancelled and product stock restored.',
+    orderStatus: 'Cancelled',
+    paymentStatus: nextPaymentStatus,
+  });
+});
+
+buyerRouter.post('/buyer/orders/:id/request-refund', requireAuth, requireRole('buyer'), async (req: Request, res: Response) => {
+  const orderId = Number(req.params.id);
+  const buyer = req.authUser!;
+  const reason = sanitizeText(req.body?.reason, 350);
+  const refundDetails = sanitizeText(req.body?.refundDetails, 200);
+
+  if (!reason || reason.length < 5) {
+    return res.status(400).json({ error: 'Please explain why you are requesting a refund (at least 5 characters).' });
+  }
+
+  const order = db
+    .prepare(
+      `SELECT o.*, sp.business_name, u.email AS seller_email
+       FROM orders o
+       JOIN seller_profiles sp ON sp.user_id = o.seller_id
+       JOIN users u ON u.id = o.seller_id
+       WHERE o.id = ? AND o.buyer_id = ?`
+    )
+    .get(orderId, buyer.id) as Record<string, any> | undefined;
+
+  if (!order) {
+    return res.status(404).json({ error: 'Order not found.' });
+  }
+
+  const payment = db.prepare(`SELECT id, status, buyer_notes FROM payments WHERE order_id = ?`).get(orderId) as
+    | { id: number; status: string; buyer_notes: string | null }
+    | undefined;
+
+  if (!payment) {
+    return res.status(404).json({ error: 'Payment record not found.' });
+  }
+  if (payment.status === 'Not Reported' || payment.status === 'Payment Cancelled') {
+    return res.status(400).json({
+      error: 'No payment has been reported on this order. You can simply cancel the order instead.',
+    });
+  }
+  if (payment.status === 'Refunded') {
+    return res.status(400).json({ error: 'This order has already been marked Refunded.' });
+  }
+  if (payment.status === 'Refund Pending') {
+    return res.status(400).json({ error: 'A refund request is already pending for this order.' });
+  }
+
+  const noteSummary = `Refund Request: ${reason}${refundDetails ? ` | Return To: ${refundDetails}` : ''}`;
+  const combinedBuyerNotes = [payment.buyer_notes, noteSummary].filter(Boolean).join(' | ').slice(0, 500);
+
+  db.transaction(() => {
+    db.prepare(
+      `UPDATE payments SET status = 'Refund Pending', buyer_notes = ?, updated_at = datetime('now') WHERE id = ?`
+    ).run(combinedBuyerNotes, payment.id);
+
+    db.prepare(
+      `INSERT INTO payment_history (payment_id, action, status, actor_user_id, notes)
+       VALUES (?, 'Buyer Requested Refund', 'Refund Pending', ?, ?)`
+    ).run(payment.id, buyer.id, noteSummary.slice(0, 500));
+
+    createNotification({
+      userId: order.seller_id,
+      title: `Refund Requested: ${order.order_reference}`,
+      message: `${buyer.fullName} requested a refund for order ${order.order_reference}: ${reason}`,
+      link: `/seller-dashboard?tab=payments`,
+      type: 'refund_requested',
+    });
+  })();
+
+  const baseUrl = getAppBaseUrl(req);
+  await sendTransactionalEmail({
+    toEmail: order.seller_email,
+    toName: order.business_name,
+    subject: `Refund Requested for Order ${order.order_reference}`,
+    eventType: 'seller_refund_requested',
+    headline: `Refund Request: ${order.order_reference}`,
+    bodyHtml: `
+      <p>Buyer <strong>${escapeHtml(buyer.fullName)}</strong> (${escapeHtml(buyer.phone || buyer.email)}) requested a refund for order <strong>${escapeHtml(order.order_reference)}</strong>.</p>
+      <p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
+      ${refundDetails ? `<p><strong>Buyer Return Account / MoMo Details:</strong> ${escapeHtml(refundDetails)}</p>` : ''}
+      <p>Please open your Seller Dashboard → Payments to verify and mark the refund once sent.</p>
+    `,
+    ctaLabel: 'Open Payments in Seller Dashboard',
+    ctaUrl: `${baseUrl}/seller-dashboard?tab=payments`,
+  });
+
+  return res.json({
+    message: 'Refund request submitted. Payment status is now Refund Pending and the seller has been notified.',
+    status: 'Refund Pending',
+  });
+});
+
 buyerRouter.get('/buyer/reviews/eligible', requireAuth, requireRole('buyer'), (req: Request, res: Response) => {
   const eligible = db
     .prepare(

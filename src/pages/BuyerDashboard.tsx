@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   CheckCircle2,
   ClipboardCopy,
@@ -9,11 +9,13 @@ import {
   MessageSquareWarning,
   Package,
   Phone,
+  RotateCcw,
   Send,
   Settings,
   Star,
   Tag,
   Truck,
+  XCircle,
 } from 'lucide-react';
 import { apiRequest } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -76,6 +78,18 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
   const [reportMsg, setReportMsg] = useState('');
   const [reportErr, setReportErr] = useState('');
   const [copiedRef, setCopiedRef] = useState('');
+
+  // Buyer Cancel & Refund forms
+  const orderDetailRef = useRef<HTMLDivElement>(null);
+  const [showCancelForm, setShowCancelForm] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancellingOrder, setCancellingOrder] = useState(false);
+  const [showRefundForm, setShowRefundForm] = useState(false);
+  const [refundReason, setRefundReason] = useState('');
+  const [refundDetails, setRefundDetails] = useState('');
+  const [requestingRefund, setRequestingRefund] = useState(false);
+  const [orderActionMsg, setOrderActionMsg] = useState('');
+  const [orderActionErr, setOrderActionErr] = useState('');
 
   // Reviews
   const [eligibleReviews, setEligibleReviews] = useState<any[]>([]);
@@ -238,6 +252,57 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
       await loadBuyerData();
     } catch (err: any) {
       setReportErr(err.message || 'Could not report payment.');
+    }
+  };
+
+  const handleCancelOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrder) return;
+    setCancellingOrder(true);
+    setOrderActionMsg('');
+    setOrderActionErr('');
+    try {
+      const res = await apiRequest<{ message: string }>(
+        `/api/buyer/orders/${selectedOrder.id}/cancel`,
+        {
+          method: 'POST',
+          body: { reason: cancelReason },
+        }
+      );
+      setOrderActionMsg(res.message);
+      setShowCancelForm(false);
+      setCancelReason('');
+      await loadBuyerData();
+    } catch (err: any) {
+      setOrderActionErr(err.message || 'Could not cancel order.');
+    } finally {
+      setCancellingOrder(false);
+    }
+  };
+
+  const handleRequestRefund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrder) return;
+    setRequestingRefund(true);
+    setOrderActionMsg('');
+    setOrderActionErr('');
+    try {
+      const res = await apiRequest<{ message: string }>(
+        `/api/buyer/orders/${selectedOrder.id}/request-refund`,
+        {
+          method: 'POST',
+          body: { reason: refundReason, refundDetails },
+        }
+      );
+      setOrderActionMsg(res.message);
+      setShowRefundForm(false);
+      setRefundReason('');
+      setRefundDetails('');
+      await loadBuyerData();
+    } catch (err: any) {
+      setOrderActionErr(err.message || 'Could not submit refund request.');
+    } finally {
+      setRequestingRefund(false);
     }
   };
 
@@ -420,6 +485,15 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
                     onClick={() => {
                       setSelectedOrderId(ord.id);
                       setShowReportForm(false);
+                      setShowCancelForm(false);
+                      setShowRefundForm(false);
+                      setOrderActionMsg('');
+                      setOrderActionErr('');
+                      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                        setTimeout(() => {
+                          orderDetailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }, 60);
+                      }
                     }}
                     className={`w-full text-left p-3.5 sm:p-4 hover:bg-slate-50 transition-colors space-y-1.5 ${
                       selectedOrder?.id === ord.id ? 'bg-orange-50/60' : ''
@@ -445,7 +519,7 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
             )}
           </div>
 
-          <div className="lg:col-span-7 min-w-0">
+          <div ref={orderDetailRef} className="lg:col-span-7 min-w-0">
             {selectedOrder ? (
               <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-5 sm:space-y-6">
                 <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-4">
@@ -817,6 +891,168 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
                         )}
                       </div>
                     )}
+
+                  {selectedOrder.payment?.status === 'Refund Pending' && (
+                    <div className="p-3 rounded-lg bg-amber-50 border border-amber-300 text-xs text-amber-950">
+                      <strong>Refund Pending:</strong> The seller has been notified of your refund request and will return funds directly to your account.
+                    </div>
+                  )}
+                  {selectedOrder.payment?.status === 'Refunded' && (
+                    <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-300 text-xs text-emerald-950">
+                      <strong>Refunded:</strong> The seller marked your refund completed.
+                    </div>
+                  )}
+
+                  {/* Buyer Order Cancellation & Refund Request Actions */}
+                  {(() => {
+                    const canCancel = ['Pending Seller Confirmation', 'Confirmed', 'Processing'].includes(
+                      selectedOrder.orderStatus
+                    );
+                    const canRequestRefund = [
+                      'Payment Reported — Awaiting Seller Verification',
+                      'Payment Confirmed',
+                      'Payment Amount Mismatch',
+                      'Payment Under Review',
+                      'Payment Not Received',
+                    ].includes(selectedOrder.payment?.status || '');
+
+                    if (!canCancel && !canRequestRefund && !orderActionMsg && !orderActionErr) {
+                      return null;
+                    }
+
+                    return (
+                      <div className="pt-3 border-t border-slate-200 space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                          {canCancel && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowCancelForm((v) => !v);
+                                setShowRefundForm(false);
+                                setOrderActionErr('');
+                              }}
+                              className="inline-flex items-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-lg border border-red-300 bg-white hover:bg-red-50 text-red-700 text-xs font-semibold"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>Cancel Order</span>
+                            </button>
+                          )}
+                          {canRequestRefund && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowRefundForm((v) => !v);
+                                setShowCancelForm(false);
+                                setOrderActionErr('');
+                              }}
+                              className="inline-flex items-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-lg border border-amber-400 bg-white hover:bg-amber-50 text-amber-900 text-xs font-semibold"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>Request Refund</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {orderActionMsg && (
+                          <p className="text-xs text-emerald-700 font-medium">{orderActionMsg}</p>
+                        )}
+                        {orderActionErr && (
+                          <p className="text-xs text-red-700 font-medium">{orderActionErr}</p>
+                        )}
+
+                        {showCancelForm && canCancel && (
+                          <form
+                            onSubmit={handleCancelOrder}
+                            className="bg-white border border-red-200 rounded-lg p-3.5 space-y-3"
+                          >
+                            <p className="text-xs font-bold text-red-800">
+                              Cancel Order {selectedOrder.orderReference}
+                            </p>
+                            <p className="text-[11px] text-slate-600">
+                              {canRequestRefund
+                                ? 'Because you already reported or made payment, cancelling will also set your payment to Refund Pending and notify the seller.'
+                                : 'Cancelling restores item stock automatically and notifies the seller.'}
+                            </p>
+                            <input
+                              type="text"
+                              value={cancelReason}
+                              onChange={(e) => setCancelReason(e.target.value)}
+                              placeholder="Reason for cancellation (optional)..."
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+                            />
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="submit"
+                                disabled={cancellingOrder}
+                                className="px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-xs font-semibold"
+                              >
+                                {cancellingOrder ? 'Cancelling...' : 'Confirm Cancel Order'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowCancelForm(false)}
+                                className="px-3 py-2 rounded-lg border border-slate-300 text-xs text-slate-700"
+                              >
+                                Keep Order
+                              </button>
+                            </div>
+                          </form>
+                        )}
+
+                        {showRefundForm && canRequestRefund && (
+                          <form
+                            onSubmit={handleRequestRefund}
+                            className="bg-white border border-amber-300 rounded-lg p-3.5 space-y-3"
+                          >
+                            <p className="text-xs font-bold text-[#0B1F3A]">
+                              Request Manual Refund from {selectedOrder.sellerBusinessName}
+                            </p>
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                Reason for Refund *
+                              </label>
+                              <textarea
+                                rows={2}
+                                required
+                                value={refundReason}
+                                onChange={(e) => setRefundReason(e.target.value)}
+                                placeholder="e.g. Changed my mind, wrong size, item delayed..."
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                                Your MoMo Number or Bank Details for Refund (Recommended)
+                              </label>
+                              <input
+                                type="text"
+                                value={refundDetails}
+                                onChange={(e) => setRefundDetails(e.target.value)}
+                                placeholder="e.g. MTN MoMo 0240000000 (Name)"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+                              />
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="submit"
+                                disabled={requestingRefund}
+                                className="px-3.5 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] disabled:opacity-60 text-white text-xs font-semibold"
+                              >
+                                {requestingRefund ? 'Submitting...' : 'Submit Refund Request'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowRefundForm(false)}
+                                className="px-3 py-2 rounded-lg border border-slate-300 text-xs text-slate-700"
+                              >
+                                Close
+                              </button>
+                            </div>
+                          </form>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Payment History Log */}

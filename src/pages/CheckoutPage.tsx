@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { CheckCircle2, Lock, Tag } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Lock, Tag } from 'lucide-react';
 import { apiRequest } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -10,7 +10,19 @@ interface CheckoutPageProps {
 
 export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
   const { user } = useAuth();
-  const { items, subtotal, clearCart } = useCart();
+  const {
+    items,
+    subtotal,
+    clearCart,
+    unavailableCount,
+    cartNotice,
+    removeUnavailableItems,
+    refreshAvailability,
+  } = useCart();
+
+  useEffect(() => {
+    refreshAvailability();
+  }, [refreshAvailability]);
 
   const [fulfillmentMethod, setFulfillmentMethod] = useState<'Delivery' | 'Pickup'>('Delivery');
   const [buyerPhone, setBuyerPhone] = useState(user?.phone || '');
@@ -215,6 +227,26 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
         Checkout
       </h1>
 
+      {(unavailableCount > 0 || cartNotice) && (
+        <div className="mb-5 p-4 rounded-xl bg-amber-50 border border-amber-300 text-xs sm:text-sm text-amber-950 space-y-2.5">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+            <p className="font-medium">
+              {cartNotice || 'One or more items in your cart are sold out or no longer available.'}
+            </p>
+          </div>
+          {unavailableCount > 0 && (
+            <button
+              type="button"
+              onClick={removeUnavailableItems}
+              className="px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
+            >
+              Remove {unavailableCount} Unavailable {unavailableCount === 1 ? 'Item' : 'Items'}
+            </button>
+          )}
+        </div>
+      )}
+
       <form onSubmit={handlePlaceOrder} className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-8 items-start">
         <div className="lg:col-span-7 min-w-0 bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-5">
           <h2 className="font-display text-lg font-bold text-[#0B1F3A]">
@@ -305,20 +337,26 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                 <p className="text-xs font-semibold text-[#0B1F3A] break-words">
                   Seller: {group.sellerName}
                 </p>
-                {group.items.map((it) => (
-                  <div
-                    key={`${it.product.id}-${it.selectedVariation}`}
-                    className="flex items-start justify-between text-xs text-slate-700 gap-2 min-w-0"
-                  >
-                    <span className="min-w-0 flex-1 break-words">
-                      {it.product.title}
-                      {it.selectedVariation ? ` (${it.selectedVariation})` : ''} × {it.quantity}
-                    </span>
-                    <span className="font-mono tabular-nums shrink-0 whitespace-nowrap">
-                      GHS {(it.product.price * it.quantity).toFixed(2)}
-                    </span>
-                  </div>
-                ))}
+                {group.items.map((it) => {
+                  const isUnavailable = Boolean(it.unavailableReason) || it.product.stock <= 0;
+                  return (
+                    <div
+                      key={`${it.product.id}-${it.selectedVariation}`}
+                      className={`flex items-start justify-between text-xs gap-2 min-w-0 ${
+                        isUnavailable ? 'text-red-700 bg-red-50 px-2 py-1.5 rounded' : 'text-slate-700'
+                      }`}
+                    >
+                      <span className="min-w-0 flex-1 break-words">
+                        {it.product.title}
+                        {it.selectedVariation ? ` (${it.selectedVariation})` : ''} × {it.quantity}
+                        {isUnavailable ? ` — ${it.unavailableReason || 'No longer available'}` : ''}
+                      </span>
+                      <span className="font-mono tabular-nums shrink-0 whitespace-nowrap">
+                        {isUnavailable ? 'Unavailable' : `GHS ${(it.product.price * it.quantity).toFixed(2)}`}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
@@ -380,10 +418,14 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || unavailableCount > 0 || subtotal <= 0}
             className="w-full min-h-[44px] py-3 rounded-lg bg-[#F97316] hover:bg-[#EA580C] disabled:opacity-60 text-white text-sm font-semibold transition-colors"
           >
-            {submitting ? 'Creating Order...' : 'Place Order & View Payment Details'}
+            {submitting
+              ? 'Creating Order...'
+              : unavailableCount > 0
+                ? 'Remove Unavailable Items to Continue'
+                : 'Place Order & View Payment Details'}
           </button>
         </div>
       </form>

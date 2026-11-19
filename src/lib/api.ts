@@ -46,7 +46,9 @@ function autoEmitForMutation(url: string, method: string) {
   if (
     url.startsWith('/api/seller') ||
     url.startsWith('/api/admin') ||
-    url.startsWith('/api/buyer/reviews')
+    url.startsWith('/api/buyer/reviews') ||
+    url.startsWith('/api/orders/checkout') ||
+    url.includes('/cancel')
   ) {
     emitDataChanged('marketplace');
   }

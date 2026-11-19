@@ -2548,12 +2548,24 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                         </div>
                       </div>
 
+                      {ord.payment?.buyerNotes && (
+                        <div
+                          className={`rounded-lg px-3 py-2 text-xs border ${
+                            ord.payment.status === 'Refund Pending'
+                              ? 'bg-amber-50 border-amber-300 text-amber-950'
+                              : 'bg-slate-50 border-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <strong>Buyer Note / Refund Info:</strong> {ord.payment.buyerNotes}
+                        </div>
+                      )}
+
                       <div className="flex flex-col sm:flex-row gap-2">
                         <input
                           type="text"
                           value={verifyNotes[ord.id] || ''}
                           onChange={(e) => setVerifyNotes({ ...verifyNotes, [ord.id]: e.target.value })}
-                          placeholder="Verification notes (optional)..."
+                          placeholder="Verification or refund notes (optional)..."
                           className="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-xs"
                         />
                         <div className="flex flex-wrap gap-2">
@@ -2588,6 +2600,22 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                             className="min-h-[38px] px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-semibold disabled:opacity-60"
                           >
                             Flag / Review
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleVerifyPayment(ord.id, 'refund_pending', ord.totalAmount)}
+                            className="min-h-[38px] px-2.5 py-1.5 rounded-lg border border-orange-300 bg-orange-50 text-orange-800 font-semibold disabled:opacity-60"
+                          >
+                            Refund Pending
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleVerifyPayment(ord.id, 'refunded', ord.totalAmount)}
+                            className="min-h-[38px] px-2.5 py-1.5 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] text-white font-semibold disabled:opacity-60"
+                          >
+                            Mark Refunded
                           </button>
                         </div>
                       </div>

@@ -136,6 +136,8 @@ export interface CartItem {
   product: Product;
   quantity: number;
   selectedVariation: string;
+  unavailableReason?: string;
+  stockAdjustedNote?: string;
 }
 
 export interface OrderItem {
