@@ -73,7 +73,6 @@ export const AIDOMART_ASSETS = {
       images: [
         '/static/image/categories/clothing/photo_2026-09-30_17-57-11.jpg',
         '/static/image/categories/clothing/photo_2026-09-30_17-57-20.jpg',
-        '/static/image/categories/clothing/photo_2026-09-30_17-59-19.jpg',
         '/static/image/categories/clothing/photo_2026-09-30_17-59-21.jpg',
         '/static/image/categories/clothing/photo_2026-09-30_17-59-24.jpg',
         '/static/image/categories/clothing/photo_2026-09-30_17-59-30.jpg',

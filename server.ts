@@ -7,7 +7,10 @@ import { createApp } from './server/app.ts';
 initDatabase();
 
 const app = createApp();
-const PORT = Number(process.env.PORT || 3000);
+const PORT =
+  process.env.NODE_ENV === 'production'
+    ? Number(process.env.PORT || 3000)
+    : Number(process.env.DEFAULT_APP_PORT || 3000);
 
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
