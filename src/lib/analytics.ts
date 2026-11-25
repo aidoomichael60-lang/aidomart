@@ -99,7 +99,7 @@ export function trackPageView(pathAndQuery: string) {
   lastTrackedPage = cleanPath;
 
   emitEvent('page_view', {
-    page_title: typeof document !== 'undefined' ? document.title : 'AIDOMART',
+    page_title: typeof document !== 'undefined' ? document.title : 'AIDOOMART',
     page_path: cleanPath,
     page_location: window.location.href,
   });

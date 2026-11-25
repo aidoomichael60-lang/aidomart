@@ -377,7 +377,7 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
       <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-xl sm:text-2xl font-bold text-[#0B1F3A]">
-            AIDOMART Private Admin Dashboard
+            AIDOOMART Private Admin Dashboard
           </h1>
           <p className="text-sm font-semibold text-[#F97316] mt-0.5">{greeting}</p>
           <p className="text-xs text-slate-500 break-all">{user.email}</p>
@@ -566,7 +566,7 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
                 </span>
               </div>
               <p className="text-slate-600">
-                Enter your Google Analytics 4 Measurement ID (formatted like <code className="font-mono">G-XXXXXXXXXX</code>) to automatically track page views, searches, product views, cart additions, and completed purchases across AIDOMART.
+                Enter your Google Analytics 4 Measurement ID (formatted like <code className="font-mono">G-XXXXXXXXXX</code>) to automatically track page views, searches, product views, cart additions, and completed purchases across AIDOOMART.
               </p>
               <form
                 onSubmit={async (e) => {
@@ -583,7 +583,7 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
                     await refreshUser();
                     showSuccess(
                       cleaned
-                        ? `Google Analytics (${cleaned}) is now active across AIDOMART.`
+                        ? `Google Analytics (${cleaned}) is now active across AIDOOMART.`
                         : 'Google Analytics disabled.'
                     );
                   } catch (err: any) {

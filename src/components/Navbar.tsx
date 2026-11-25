@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Bell, CheckCheck, Menu, ShoppingBag, Volume2, VolumeX, X, LogOut, User } from 'lucide-react';
-import { AIDOMART_ASSETS } from '../constants/assets';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useNotifications } from '../context/NotificationsContext';
@@ -39,7 +38,6 @@ export function Navbar({ currentPath, onNavigate }: NavbarProps) {
   } = useNotifications();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [logoFailed, setLogoFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
 
   const navigateSearchResults = (q: string) => {
@@ -110,18 +108,9 @@ export function Navbar({ currentPath, onNavigate }: NavbarProps) {
           onClick={() => handleLinkClick('/')}
           className="flex items-center gap-2 text-left whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 rounded-md py-1"
         >
-          {!logoFailed ? (
-            <img
-              src={AIDOMART_ASSETS.branding.logo}
-              alt="AIDOMART Logo"
-              onError={() => setLogoFailed(true)}
-              className="h-8 sm:h-9 w-auto object-contain"
-            />
-          ) : (
-            <span className="font-display text-lg sm:text-xl font-extrabold tracking-tight text-white">
-              AIDO<span className="text-[#F97316]">MART</span>
-            </span>
-          )}
+          <span className="font-display text-lg sm:text-xl font-extrabold tracking-tight text-white">
+            AIDOO<span className="text-[#F97316]">MART</span>
+          </span>
         </button>
 
         {/* Zone 2: Public Navigation Links & Search */}

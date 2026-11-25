@@ -217,12 +217,12 @@ async function recordLoginDeviceAndNotify(
       await sendTransactionalEmail({
         toEmail: user.email,
         toName: user.full_name,
-        subject: 'AIDOMART Security Alert — New device sign-in detected',
+        subject: 'AIDOOMART Security Alert — New device sign-in detected',
         eventType: 'new_device_login',
         headline: 'New Device Sign-In Detected',
         bodyHtml: `
           <p>Hello ${escapeHtml(user.full_name)},</p>
-          <p>A sign-in to your <strong>AIDOMART</strong> account just occurred from a new or unrecognized device:</p>
+          <p>A sign-in to your <strong>AIDOOMART</strong> account just occurred from a new or unrecognized device:</p>
           <div style="margin:16px 0;padding:14px 16px;background-color:#F8FAFC;border:1px solid #CBD5E1;border-radius:10px;font-size:13px;color:#1E293B;">
             <strong>Device:</strong> ${escapeHtml(deviceLabel)}<br/>
             ${ip ? `<strong>IP Address:</strong> ${escapeHtml(ip)}<br/>` : ''}
@@ -423,13 +423,13 @@ authRouter.post('/register', authLimiter, async (req: Request, res: Response) =>
     const emailRes = await sendTransactionalEmail({
       toEmail: email,
       toName: fullName,
-      subject: 'Welcome to AIDOMART — Please verify your email address',
+      subject: 'Welcome to AIDOOMART — Please verify your email address',
       eventType: `register_${roleRaw}`,
       dedupKey: `register_${userId}_${rawCode}`,
-      headline: `Welcome to AIDOMART, ${fullName}!`,
+      headline: `Welcome to AIDOOMART, ${fullName}!`,
       bodyHtml: `
         <p>Hello ${escapeHtml(fullName)},</p>
-        <p>Thank you for registering a <strong>${escapeHtml(roleRaw === 'seller' ? 'Seller' : 'Buyer')}</strong> account on <strong>AIDOMART</strong>! We are delighted to welcome you to our marketplace.</p>
+        <p>Thank you for registering a <strong>${escapeHtml(roleRaw === 'seller' ? 'Seller' : 'Buyer')}</strong> account on <strong>AIDOOMART</strong>! We are delighted to welcome you to our marketplace.</p>
         <p>${
           roleRaw === 'seller'
             ? 'Before our review team processes your seller application, please confirm your email address by entering the 6-digit verification code below (or by clicking the verification button):'
@@ -441,7 +441,7 @@ authRouter.post('/register', authLimiter, async (req: Request, res: Response) =>
             ? '<p style="font-size:13px;color:#475569;">Once your email is verified, you can sign in to upload any supporting verification documents in your Seller Dashboard while our administrators review your application.</p>'
             : ''
         }
-        <p style="font-size:13px;color:#64748B;">If you did not create an account on AIDOMART, please disregard this email.</p>
+        <p style="font-size:13px;color:#64748B;">If you did not create an account on AIDOOMART, please disregard this email.</p>
       `,
       ctaLabel: 'Verify Email Address',
       ctaUrl: verifyUrl,
@@ -464,7 +464,7 @@ authRouter.post('/register', authLimiter, async (req: Request, res: Response) =>
         createNotification({
           userId: admin.id,
           title: 'New Buyer Sign-Up',
-          message: `${fullName} (${email}) created a new buyer account on AIDOMART.`,
+          message: `${fullName} (${email}) created a new buyer account on AIDOOMART.`,
           link: '/admin?tab=users',
           type: 'buyer_signup',
         });
@@ -474,12 +474,12 @@ authRouter.post('/register', authLimiter, async (req: Request, res: Response) =>
     if (roleRaw === 'seller') {
       const appStateLabel = saveAsDraft ? 'Draft' : 'Pending Review';
       await sendAdminAlertEmail({
-        subject: `AIDOMART Admin Alert: New Seller Registered — ${businessName}`,
+        subject: `AIDOOMART Admin Alert: New Seller Registered — ${businessName}`,
         eventType: 'admin_new_seller_alert',
         dedupKey: `admin_new_seller_${userId}`,
         headline: `New Seller Registration (${appStateLabel})`,
         bodyHtml: `
-          <p>A new seller account has registered on <strong>AIDOMART</strong> and awaits your approval.</p>
+          <p>A new seller account has registered on <strong>AIDOOMART</strong> and awaits your approval.</p>
           <div style="margin:16px 0;padding:14px 16px;background-color:#F8FAFC;border:1px solid #CBD5E1;border-radius:10px;font-size:13px;color:#1E293B;line-height:1.7;">
             <strong>Business Name:</strong> ${escapeHtml(businessName)}<br/>
             <strong>Legal Name:</strong> ${escapeHtml(fullName)}<br/>
@@ -581,7 +581,7 @@ authRouter.post('/verify-email', verifyLimiter, (req: Request, res: Response) =>
     summary: `Verified email address: ${email}`,
   });
 
-  return res.json({ message: 'Email verified successfully. You can now sign in to AIDOMART.' });
+  return res.json({ message: 'Email verified successfully. You can now sign in to AIDOOMART.' });
 });
 
 authRouter.post('/resend-verification', authLimiter, async (req: Request, res: Response) => {
@@ -619,12 +619,12 @@ authRouter.post('/resend-verification', authLimiter, async (req: Request, res: R
   const emailRes = await sendTransactionalEmail({
     toEmail: email,
     toName: user.full_name,
-    subject: 'Your AIDOMART email verification code',
+    subject: 'Your AIDOOMART email verification code',
     eventType: 'resend_verification',
     headline: 'Confirm Your Email Address',
     bodyHtml: `
       <p>Hello ${escapeHtml(user.full_name)},</p>
-      <p>Thank you for joining <strong>AIDOMART</strong>. As requested, here is a fresh 6-digit verification code to confirm your email address and activate your account:</p>
+      <p>Thank you for joining <strong>AIDOOMART</strong>. As requested, here is a fresh 6-digit verification code to confirm your email address and activate your account:</p>
       ${buildOtpCardHtml(rawCode, 15)}
       <p style="font-size:13px;color:#64748B;">You can either enter this code on the verification page or click the button below. If you did not request this email, no further action is needed.</p>
     `,
@@ -723,7 +723,7 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
   }
 
   if (user.account_status === 'Suspended') {
-    return res.status(403).json({ error: 'Your account has been suspended. Please contact AIDOMART support.' });
+    return res.status(403).json({ error: 'Your account has been suspended. Please contact AIDOOMART support.' });
   }
 
   if (!user.email_verified) {
@@ -754,14 +754,14 @@ authRouter.post('/login', authLimiter, async (req: Request, res: Response) => {
     const emailRes = await sendTransactionalEmail({
       toEmail: user.email,
       toName: user.full_name,
-      subject: 'Your AIDOMART sign-in security code',
+      subject: 'Your AIDOOMART sign-in security code',
       eventType: 'login_otp',
       headline: 'Sign-In Security Verification',
       bodyHtml: `
         <p>Hello ${escapeHtml(user.full_name)},</p>
-        <p>Thank you for signing in to your <strong>AIDOMART</strong> account. To keep your account protected, please enter the 6-digit security code below to complete your sign-in:</p>
+        <p>Thank you for signing in to your <strong>AIDOOMART</strong> account. To keep your account protected, please enter the 6-digit security code below to complete your sign-in:</p>
         ${buildOtpCardHtml(otpCode, 15)}
-        <p style="font-size:13px;color:#64748B;">For your security, never share this code with anyone—AIDOMART staff will never ask for it. If you did not attempt to sign in, please reset your password immediately.</p>
+        <p style="font-size:13px;color:#64748B;">For your security, never share this code with anyone—AIDOOMART staff will never ask for it. If you did not attempt to sign in, please reset your password immediately.</p>
       `,
     });
 
@@ -947,12 +947,12 @@ authRouter.post('/resend-login-code', authLimiter, async (req: Request, res: Res
   const emailRes = await sendTransactionalEmail({
     toEmail: user.email,
     toName: user.full_name,
-    subject: 'Your new AIDOMART sign-in security code',
+    subject: 'Your new AIDOOMART sign-in security code',
     eventType: 'login_otp_resend',
     headline: 'Fresh Sign-In Security Code',
     bodyHtml: `
       <p>Hello ${escapeHtml(user.full_name)},</p>
-      <p>Here is your new 6-digit security verification code to complete signing in to <strong>AIDOMART</strong>:</p>
+      <p>Here is your new 6-digit security verification code to complete signing in to <strong>AIDOOMART</strong>:</p>
       ${buildOtpCardHtml(otpCode, 15)}
       <p style="font-size:13px;color:#64748B;">For your protection, any previous login code has been cancelled. If you did not request this code, please reset your password immediately.</p>
     `,
@@ -1019,12 +1019,12 @@ authRouter.post('/forgot-password', authLimiter, async (req: Request, res: Respo
   const emailRes = await sendTransactionalEmail({
     toEmail: email,
     toName: user.full_name,
-    subject: 'Reset your AIDOMART account password',
+    subject: 'Reset your AIDOOMART account password',
     eventType: 'password_reset',
     headline: 'Password Reset Request',
     bodyHtml: `
       <p>Hello ${escapeHtml(user.full_name)},</p>
-      <p>Thank you for contacting <strong>AIDOMART</strong> regarding your account access. We received a request to reset your password.</p>
+      <p>Thank you for contacting <strong>AIDOOMART</strong> regarding your account access. We received a request to reset your password.</p>
       <p>Please click the button below to choose a new password. For your protection, this link can only be used once and expires in 15 minutes.</p>
       <p style="font-size:13px;color:#64748B;">If you did not request a password reset, you can safely ignore this message—your current password will remain unchanged.</p>
     `,
@@ -1138,7 +1138,7 @@ function renderOAuthPopupResultHtml(params: {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AIDOMART Sign-In</title>
+  <title>AIDOOMART Sign-In</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#F8FAFC; color:#0B1F3A; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; padding:24px; }
     .card { background:#fff; border:1px solid #E2E8F0; border-radius:14px; padding:28px 24px; max-width:420px; text-align:center; box-shadow:0 4px 14px rgba(11,31,58,0.08); }
@@ -1150,9 +1150,9 @@ function renderOAuthPopupResultHtml(params: {
 </head>
 <body>
   <div class="card">
-    <div class="brand">AIDO<span class="accent">MART</span></div>
+    <div class="brand">AIDOO<span class="accent">MART</span></div>
     <p>${safeMessage}</p>
-    <a href="${escapeHtml(fallbackPath)}">Continue to AIDOMART</a>
+    <a href="${escapeHtml(fallbackPath)}">Continue to AIDOOMART</a>
   </div>
   <script>
     (function () {
@@ -1182,7 +1182,7 @@ async function completeOAuthLogin(
 ) {
   const normalizedEmail = sanitizeText(opts.email, 160).toLowerCase();
   const displayFallback =
-    normalizedEmail.split('@')[0]?.replace(/[._-]+/g, ' ').trim() || 'AIDOMART Member';
+    normalizedEmail.split('@')[0]?.replace(/[._-]+/g, ' ').trim() || 'AIDOOMART Member';
   const cleanFullName = sanitizeText(opts.fullName, 120) || displayFallback;
 
   if (!normalizedEmail) {
@@ -1227,7 +1227,7 @@ async function completeOAuthLogin(
 
     if (user) {
       if (user.account_status === 'Suspended') {
-        throw new Error('Your account has been suspended. Please contact AIDOMART support.');
+        throw new Error('Your account has been suspended. Please contact AIDOOMART support.');
       }
       db.prepare(
         `INSERT OR IGNORE INTO oauth_accounts (user_id, provider, provider_user_id, provider_email)
@@ -1307,12 +1307,12 @@ async function completeOAuthLogin(
     const baseUrl = getAppBaseUrl(req);
     if (role === 'seller') {
       await sendAdminAlertEmail({
-        subject: `AIDOMART Admin Alert: New Seller (${providerLabel}) — ${cleanFullName}`,
+        subject: `AIDOOMART Admin Alert: New Seller (${providerLabel}) — ${cleanFullName}`,
         eventType: 'admin_new_seller_oauth_alert',
         dedupKey: `admin_oauth_seller_${user.id}`,
         headline: `New Seller Sign-Up (${providerLabel})`,
         bodyHtml: `
-          <p>A new <strong>Seller</strong> signed up on AIDOMART using ${escapeHtml(providerLabel)}:</p>
+          <p>A new <strong>Seller</strong> signed up on AIDOOMART using ${escapeHtml(providerLabel)}:</p>
           <div style="margin:16px 0;padding:14px 16px;background-color:#F8FAFC;border:1px solid #CBD5E1;border-radius:10px;font-size:13px;color:#1E293B;line-height:1.7;">
             <strong>Full Name:</strong> ${escapeHtml(cleanFullName)}<br/>
             <strong>Email:</strong> ${escapeHtml(normalizedEmail)}<br/>
@@ -1324,7 +1324,7 @@ async function completeOAuthLogin(
       });
     }
   } else if (user.account_status === 'Suspended') {
-    throw new Error('Your account has been suspended. Please contact AIDOMART support.');
+    throw new Error('Your account has been suspended. Please contact AIDOOMART support.');
   }
 
   createSessionAndSetCookie(req, res, user.id);
@@ -1465,7 +1465,7 @@ authRouter.get(['/oauth/google/callback', '/oauth/google/callback/'], async (req
       renderOAuthPopupResultHtml({
         ok: true,
         provider: 'google',
-        message: 'Google Sign-In successful. Redirecting you to AIDOMART...',
+        message: 'Google Sign-In successful. Redirecting you to AIDOOMART...',
         redirectPath: result.redirectPath,
       })
     );

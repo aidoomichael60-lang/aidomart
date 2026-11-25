@@ -38,14 +38,14 @@ function buildBrandedTemplate(opts: SendEmailOptions): string {
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background-color:#F1F5F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F172A;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${safeHeadline} — AIDOMART Verified Multi-Vendor Marketplace&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;</div>
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${safeHeadline} — AIDOOMART Verified Multi-Vendor Marketplace&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;</div>
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:28px 12px;">
     <tr>
       <td align="center">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background-color:#FFFFFF;border-radius:14px;overflow:hidden;border:1px solid #E2E8F0;box-shadow:0 2px 8px rgba(11,31,58,0.06);">
           <tr>
             <td style="background-color:#0B1F3A;padding:22px 30px;border-bottom:3px solid #F97316;">
-              <div style="color:#FFFFFF;font-size:22px;font-weight:800;letter-spacing:-0.02em;">AIDO<span style="color:#F97316;">MART</span></div>
+              <div style="color:#FFFFFF;font-size:22px;font-weight:800;letter-spacing:-0.02em;">AIDOO<span style="color:#F97316;">MART</span></div>
               <div style="color:#CBD5E1;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-top:4px;">Verified Multi-Vendor Marketplace</div>
             </td>
           </tr>
@@ -57,16 +57,16 @@ function buildBrandedTemplate(opts: SendEmailOptions): string {
               </div>
               ${ctaBlock}
               <p style="margin:26px 0 0 0;font-size:14px;line-height:1.6;color:#1E293B;">
-                Thank you for choosing <strong>AIDOMART</strong>.<br/>
+                Thank you for choosing <strong>AIDOOMART</strong>.<br/>
                 Warm regards,<br/>
-                <strong>The AIDOMART Team</strong>
+                <strong>The AIDOOMART Team</strong>
               </p>
               <hr style="border:none;border-top:1px solid #E2E8F0;margin:24px 0 18px 0;" />
               <p style="margin:0 0 6px 0;font-size:12px;color:#64748B;line-height:1.5;">
-                This is an official automated message from AIDOMART. For your security, never share your verification codes with anyone.
+                This is an official automated message from AIDOOMART. For your security, never share your verification codes with anyone.
               </p>
               <p style="margin:0;font-size:12px;color:#64748B;line-height:1.5;">
-                Need assistance? Contact AIDOMART Support (Michael Aidoo) · Phone: 0205283752 · Email: aidoomichael60@gmail.com
+                Need assistance? Contact AIDOOMART Support (Michael Aidoo) · Phone: 0205283752 · Email: aidoomichael60@gmail.com
               </p>
             </td>
           </tr>
@@ -101,7 +101,7 @@ export async function sendTransactionalEmail(opts: SendEmailOptions): Promise<Em
 
   const apiKey = process.env.BREVO_API_KEY?.trim();
   const senderEmail = process.env.BREVO_SENDER_EMAIL?.trim() || 'aidoomichael60@gmail.com';
-  const senderName = process.env.BREVO_SENDER_NAME?.trim() || 'AIDOMART';
+  const senderName = process.env.BREVO_SENDER_NAME?.trim() || 'AIDOOMART';
 
   if (!apiKey) {
     const errMsg = 'BREVO_API_KEY is not configured in server environment variables.';
@@ -203,7 +203,7 @@ export async function sendAdminAlertEmail(opts: {
     if (!admin.email) continue;
     await sendTransactionalEmail({
       toEmail: admin.email,
-      toName: admin.full_name || 'AIDOMART Admin',
+      toName: admin.full_name || 'AIDOOMART Admin',
       subject: opts.subject,
       eventType: opts.eventType,
       dedupKey: opts.dedupKey ? `${opts.dedupKey}_${admin.id}` : undefined,

@@ -37,7 +37,7 @@ export function CategoriesPage({ onNavigate }: CategoriesPageProps) {
           Marketplace Categories
         </h1>
         <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
-          These category visual galleries represent each AIDOMART shopping department. Click "Shop Published Listings" in any category to browse genuine items currently listed by approved sellers.
+          These category visual galleries represent each AIDOOMART shopping department. Click "Shop Published Listings" in any category to browse genuine items currently listed by approved sellers.
         </p>
       </div>
 

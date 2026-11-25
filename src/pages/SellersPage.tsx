@@ -79,7 +79,7 @@ export function SellersPage({ onNavigate }: SellersPageProps) {
             Approved Marketplace Sellers
           </h1>
           <p className="text-sm text-slate-600 mt-1">
-            Browse verified independent businesses on AIDOMART. Click any seller profile to view their storefront details and published items.
+            Browse verified independent businesses on AIDOOMART. Click any seller profile to view their storefront details and published items.
           </p>
         </div>
 

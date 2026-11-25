@@ -24,7 +24,7 @@ export const AIDOMART_ASSETS = {
         src: '/static/image/homepage/carousel/slide-03.jpg',
         title: 'Transparent Direct Payments',
         subtitle: 'Pay sellers directly via their verified Mobile Money or bank transfer details with unique order references.',
-        ctaLabel: 'How AIDOMART Works',
+        ctaLabel: 'How AIDOOMART Works',
         ctaTarget: '/#how-it-works',
       },
       {
@@ -38,13 +38,13 @@ export const AIDOMART_ASSETS = {
     promotionalBanners: [
       {
         src: '/static/image/homepage/promotional-banners/promotion-01.jpg',
-        alt: 'AIDOMART Marketplace Promotional Showcase 1',
+        alt: 'AIDOOMART Marketplace Promotional Showcase 1',
         title: 'Direct Seller Storefronts',
         caption: 'Visit dedicated seller profiles directly from every product listing.',
       },
       {
         src: '/static/image/homepage/promotional-banners/promotion-02.jpg',
-        alt: 'AIDOMART Marketplace Promotional Showcase 2',
+        alt: 'AIDOOMART Marketplace Promotional Showcase 2',
         title: 'Verified Order & Payment Tracking',
         caption: 'Every order receives a unique reference tracked by both buyer and seller.',
       },
@@ -153,10 +153,10 @@ export const AIDOMART_ASSETS = {
 } as const;
 
 export const AIDOMART_CONTACT = {
-  adminTitle: 'AIDOMART Marketplace Administrator',
+  adminTitle: 'AIDOOMART Marketplace Administrator',
   contactName: 'Michael Aidoo',
   phone: '0205283752',
   whatsappDisplay: '+233205283752',
-  whatsappUrl: 'https://wa.me/233205283752?text=Hello%20AIDOMART%2C%20I%20would%20like%20assistance%20with%20the%20marketplace.',
+  whatsappUrl: 'https://wa.me/233205283752?text=Hello%20AIDOOMART%2C%20I%20would%20like%20assistance%20with%20the%20marketplace.',
   email: 'aidoomichael60@gmail.com',
 } as const;

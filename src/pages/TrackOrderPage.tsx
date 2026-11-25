@@ -126,7 +126,7 @@ export function TrackOrderPage({ initialQuery, onNavigate }: TrackOrderPageProps
   const sellerWhatsApp = result
     ? buildWhatsAppUrl(
         result.seller.phone,
-        `Hello ${result.seller.businessName}, I am checking on my AIDOMART order ${result.orderReference}.`
+        `Hello ${result.seller.businessName}, I am checking on my AIDOOMART order ${result.orderReference}.`
       )
     : null;
 
@@ -135,7 +135,7 @@ export function TrackOrderPage({ initialQuery, onNavigate }: TrackOrderPageProps
       <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-8 space-y-5 shadow-sm">
         <div>
           <h1 className="font-display text-xl sm:text-3xl font-bold text-[#0B1F3A]">
-            Track Your AIDOMART Order
+            Track Your AIDOOMART Order
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-1">
             Enter the short unique order code you received at checkout (e.g.{' '}

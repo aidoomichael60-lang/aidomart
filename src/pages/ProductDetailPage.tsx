@@ -448,13 +448,13 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
 
                 {buildWhatsAppUrl(
                   product.seller.phone,
-                  `Hello ${product.seller.businessName}, I am interested in "${product.title}" on AIDOMART.`
+                  `Hello ${product.seller.businessName}, I am interested in "${product.title}" on AIDOOMART.`
                 ) && (
                   <a
                     href={
                       buildWhatsAppUrl(
                         product.seller.phone,
-                        `Hello ${product.seller.businessName}, I am interested in "${product.title}" on AIDOMART.`
+                        `Hello ${product.seller.businessName}, I am interested in "${product.title}" on AIDOOMART.`
                       )!
                     }
                     target="_blank"

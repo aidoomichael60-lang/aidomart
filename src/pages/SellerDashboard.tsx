@@ -1973,7 +1973,7 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
               {orders.map((ord) => {
                 const buyerWa = buildWhatsAppUrl(
                   ord.buyerPhone,
-                  `Hello ${ord.buyerName}, update on your AIDOMART order ${ord.orderReference}.`
+                  `Hello ${ord.buyerName}, update on your AIDOOMART order ${ord.orderReference}.`
                 );
                 return (
                   <div key={ord.id} className="p-4 sm:p-5 space-y-3">
@@ -2255,13 +2255,13 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
                   </div>
                   {buildWhatsAppUrl(
                     activeBuyerConversation.buyerPhone,
-                    `Hello ${activeBuyerConversation.buyerName}, replying from ${profile?.businessName || 'AIDOMART'}.`
+                    `Hello ${activeBuyerConversation.buyerName}, replying from ${profile?.businessName || 'AIDOOMART'}.`
                   ) && (
                     <a
                       href={
                         buildWhatsAppUrl(
                           activeBuyerConversation.buyerPhone,
-                          `Hello ${activeBuyerConversation.buyerName}, replying from ${profile?.businessName || 'AIDOMART'}.`
+                          `Hello ${activeBuyerConversation.buyerName}, replying from ${profile?.businessName || 'AIDOOMART'}.`
                         )!
                       }
                       target="_blank"

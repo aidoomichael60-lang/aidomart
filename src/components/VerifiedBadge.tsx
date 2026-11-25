@@ -4,7 +4,7 @@ import { ShieldCheck } from 'lucide-react';
 export function VerifiedBadge({ size = 'sm' }: { size?: 'sm' | 'md' }) {
   return (
     <span
-      title="Verified Seller — Approved by AIDOMART Administration"
+      title="Verified Seller — Approved by AIDOOMART Administration"
       className={`inline-flex items-center gap-1 font-semibold text-[#0B1F3A] bg-orange-50 border border-orange-200 rounded ${
         size === 'md' ? 'px-2.5 py-1 text-xs' : 'px-1.5 py-0.5 text-[11px]'
       }`}

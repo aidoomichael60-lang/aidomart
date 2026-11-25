@@ -122,7 +122,7 @@ export function ShopPage({ initialCategory = '', initialQuery = '', onNavigate }
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
           <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#0B1F3A]">
-            AIDOMART Shop
+            AIDOOMART Shop
           </h1>
           <p className="text-sm text-slate-600 mt-1">
             Browse authentic products published by approved sellers. Click any seller profile below or on a product card to visit their storefront.

@@ -154,7 +154,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     if (typeof window === 'undefined' || typeof window.Notification === 'undefined') return;
     if (window.Notification.permission !== 'granted') return;
     try {
-      const notif = new window.Notification(`AIDOMART · ${n.title}`, {
+      const notif = new window.Notification(`AIDOOMART · ${n.title}`, {
         body: n.message,
         tag: `aidomart-notif-${n.id}`,
       });

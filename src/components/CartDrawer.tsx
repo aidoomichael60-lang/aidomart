@@ -80,7 +80,7 @@ export function CartDrawer({ onNavigate }: CartDrawerProps) {
               <ShoppingBag className="w-10 h-10 text-slate-300 mx-auto" />
               <p className="text-sm font-semibold text-slate-800">Your cart is empty</p>
               <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                Browse genuine listings from approved AIDOMART sellers and add items to your cart.
+                Browse genuine listings from approved AIDOOMART sellers and add items to your cart.
               </p>
               <button
                 type="button"

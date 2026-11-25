@@ -286,14 +286,14 @@ sellerRouter.put('/application', async (req: Request, res: Response) => {
     await sendTransactionalEmail({
       toEmail: profile.email,
       toName: businessName,
-      subject: 'AIDOMART Seller Application Received',
+      subject: 'AIDOOMART Seller Application Received',
       eventType: 'seller_application_submitted',
       headline: 'Seller Application Submitted for Review',
-      bodyHtml: `<p>Your seller application for <strong>${escapeHtml(businessName)}</strong> is now marked <strong>Pending Review</strong>. An AIDOMART administrator will review your business information and supporting documents.</p>`,
+      bodyHtml: `<p>Your seller application for <strong>${escapeHtml(businessName)}</strong> is now marked <strong>Pending Review</strong>. An AIDOOMART administrator will review your business information and supporting documents.</p>`,
     }).catch(() => {});
 
     await sendAdminAlertEmail({
-      subject: `AIDOMART Admin Alert: Seller Ready for Approval — ${businessName}`,
+      subject: `AIDOOMART Admin Alert: Seller Ready for Approval — ${businessName}`,
       eventType: 'admin_seller_submitted_review',
       headline: 'Seller Application Submitted for Review',
       bodyHtml: `

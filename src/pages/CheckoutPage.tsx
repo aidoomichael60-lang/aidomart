@@ -475,7 +475,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
 
           {sellerGroups.length > 1 && (
             <div className="p-3.5 rounded-lg bg-orange-50 border border-orange-200 text-xs text-slate-800 break-words">
-              Your cart includes items from <strong>{sellerGroups.length} different sellers</strong>. AIDOMART will create a separate seller-specific order and unique reference for each seller so you can pay each seller directly with no automated payment splitting.
+              Your cart includes items from <strong>{sellerGroups.length} different sellers</strong>. AIDOOMART will create a separate seller-specific order and unique reference for each seller so you can pay each seller directly with no automated payment splitting.
             </div>
           )}
         </div>

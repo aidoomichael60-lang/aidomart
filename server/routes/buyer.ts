@@ -339,7 +339,7 @@ buyerRouter.post('/orders/checkout', requireAuth, requireRole('buyer'), async (r
       const sellerMail = await sendTransactionalEmail({
         toEmail: ord.sellerEmail,
         toName: ord.sellerBusinessName,
-        subject: `New AIDOMART Order ${ord.orderReference}`,
+        subject: `New AIDOOMART Order ${ord.orderReference}`,
         eventType: 'seller_new_order',
         dedupKey: `seller_order_${ord.orderReference}`,
         headline: `New Order Received: ${ord.orderReference}`,
@@ -361,13 +361,13 @@ buyerRouter.post('/orders/checkout', requireAuth, requireRole('buyer'), async (r
       const buyerMail = await sendTransactionalEmail({
         toEmail: buyer.email,
         toName: buyer.fullName,
-        subject: `AIDOMART Order Confirmation — ${ord.orderReference}`,
+        subject: `AIDOOMART Order Confirmation — ${ord.orderReference}`,
         eventType: 'buyer_order_confirmation',
         dedupKey: `buyer_order_${ord.orderReference}`,
         headline: `Order Confirmed: ${ord.orderReference}`,
         bodyHtml: `
           <p>Hello ${escapeHtml(buyer.fullName)},</p>
-          <p>Thank you for ordering from <strong>${escapeHtml(ord.sellerBusinessName)}</strong> on AIDOMART.</p>
+          <p>Thank you for ordering from <strong>${escapeHtml(ord.sellerBusinessName)}</strong> on AIDOOMART.</p>
           <p><strong>Unique Order Reference:</strong> ${escapeHtml(ord.orderReference)}<br/>
              <strong>Total Payable:</strong> GHS ${ord.totalAmount.toFixed(2)}</p>
           <ul>${itemsRowsHtml}</ul>

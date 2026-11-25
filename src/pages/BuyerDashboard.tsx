@@ -509,13 +509,13 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
                   </div>
                   {buildWhatsAppUrl(
                     activeConversation.sellerPhone,
-                    `Hello ${activeConversation.sellerBusinessName}, messaging from AIDOMART.`
+                    `Hello ${activeConversation.sellerBusinessName}, messaging from AIDOOMART.`
                   ) && (
                     <a
                       href={
                         buildWhatsAppUrl(
                           activeConversation.sellerPhone,
-                          `Hello ${activeConversation.sellerBusinessName}, messaging from AIDOMART.`
+                          `Hello ${activeConversation.sellerBusinessName}, messaging from AIDOOMART.`
                         )!
                       }
                       target="_blank"

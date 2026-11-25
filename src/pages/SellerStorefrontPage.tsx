@@ -115,7 +115,7 @@ export function SellerStorefrontPage({ sellerUserId, onNavigate }: SellerStorefr
 
   const whatsappUrl = buildWhatsAppUrl(
     seller.phone,
-    `Hello ${seller.businessName}, I am visiting your storefront on AIDOMART.`
+    `Hello ${seller.businessName}, I am visiting your storefront on AIDOOMART.`
   );
 
   return (
@@ -184,7 +184,7 @@ export function SellerStorefrontPage({ sellerUserId, onNavigate }: SellerStorefr
               About {seller.businessName}
             </p>
             <p className="text-xs sm:text-sm text-slate-700 leading-relaxed max-w-3xl whitespace-pre-line">
-              {seller.description || 'Independent merchant storefront on AIDOMART.'}
+              {seller.description || 'Independent merchant storefront on AIDOOMART.'}
             </p>
           </div>
 

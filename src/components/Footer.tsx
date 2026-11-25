@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Phone, Mail } from 'lucide-react';
-import { AIDOMART_ASSETS, AIDOMART_CONTACT } from '../constants/assets';
+import { AIDOMART_CONTACT } from '../constants/assets';
 import { WhatsAppIcon } from './WhatsAppIcon';
 
 interface FooterProps {
@@ -8,24 +8,13 @@ interface FooterProps {
 }
 
 export function Footer({ onNavigate }: FooterProps) {
-  const [logoFailed, setLogoFailed] = useState(false);
-
   return (
     <footer id="contact" className="w-full max-w-full overflow-x-hidden bg-[#0B1F3A] text-slate-200 border-t border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 grid grid-cols-1 md:grid-cols-3 gap-10">
         <div>
-          {!logoFailed ? (
-            <img
-              src={AIDOMART_ASSETS.branding.logo}
-              alt="AIDOMART Logo"
-              onError={() => setLogoFailed(true)}
-              className="h-9 w-auto object-contain"
-            />
-          ) : (
-            <span className="font-display text-xl font-extrabold tracking-tight text-white">
-              AIDO<span className="text-[#F97316]">MART</span>
-            </span>
-          )}
+          <span className="font-display text-xl font-extrabold tracking-tight text-white">
+            AIDOO<span className="text-[#F97316]">MART</span>
+          </span>
           <p className="text-sm text-slate-300 mt-3 leading-relaxed max-w-sm">
             A multi-vendor marketplace connecting buyers directly with verified independent sellers through transparent storefronts and manual payment verification.
           </p>
@@ -108,7 +97,7 @@ export function Footer({ onNavigate }: FooterProps) {
 
       <div className="border-t border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400">
-          <p>© {new Date().getFullYear()} AIDOMART Marketplace. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} AIDOOMART Marketplace. All rights reserved.</p>
           <p>Independent sellers · Direct manual payment verification</p>
         </div>
       </div>

@@ -118,7 +118,7 @@ export function InstantSearchBar({
               setOpen(true);
             }}
             placeholder={placeholder}
-            aria-label="Search AIDOMART products"
+            aria-label="Search AIDOOMART products"
             className={
               isNavbar
                 ? 'w-full pl-8 pr-7 py-1.5 rounded-lg bg-white/10 border border-white/15 text-xs text-white placeholder:text-slate-300 focus:outline-none focus:bg-white focus:text-slate-900 focus:placeholder:text-slate-400 transition-colors'

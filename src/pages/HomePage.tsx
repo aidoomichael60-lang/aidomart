@@ -97,7 +97,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
     <div className="w-full max-w-full overflow-x-clip">
       {/* 1. Full-width Homepage Carousel directly beneath Navigation */}
       <section
-        aria-label="AIDOMART Highlights"
+        aria-label="AIDOOMART Highlights"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         onTouchStart={handleTouchStart}
@@ -126,7 +126,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
               <div className="absolute inset-0 max-w-7xl mx-auto px-11 sm:px-6 flex items-center min-w-0">
                 <div className="w-full max-w-xl min-w-0 text-white space-y-1.5 sm:space-y-4">
                   <p className="text-[10px] sm:text-xs font-medium text-orange-300 tracking-wide truncate">
-                    AIDOMART Multi-Vendor Marketplace · Slide 0{idx + 1} of 0{slides.length}
+                    AIDOOMART Multi-Vendor Marketplace · Slide 0{idx + 1} of 0{slides.length}
                   </p>
                   <h1 className="font-display text-base sm:text-4xl lg:text-5xl font-extrabold leading-tight [text-wrap:balance] line-clamp-2">
                     {slide.title}
@@ -207,7 +207,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
         <div className="absolute inset-0 pointer-events-none">
           <SafeAssetImage
             src={AIDOMART_ASSETS.homepage.background}
-            alt="AIDOMART Marketplace Background"
+            alt="AIDOOMART Marketplace Background"
             className="w-full h-full object-cover opacity-15"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-white/92 via-white/88 to-slate-50/95" />
@@ -355,7 +355,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 No seller products published yet
               </h3>
               <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto">
-                AIDOMART displays only authentic products uploaded by admin-approved sellers. Once sellers complete verification and publish their inventory, listings will appear here automatically.
+                AIDOOMART displays only authentic products uploaded by admin-approved sellers. Once sellers complete verification and publish their inventory, listings will appear here automatically.
               </p>
               <div className="pt-2 flex flex-wrap justify-center gap-2.5">
                 <button
@@ -464,7 +464,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
               Marketplace Highlights
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-              Official AIDOMART announcements and approved seller showcases.
+              Official AIDOOMART announcements and approved seller showcases.
             </p>
           </div>
 

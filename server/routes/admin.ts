@@ -404,7 +404,7 @@ adminRouter.post('/sellers/:profileId/review', async (req: Request, res: Respons
       title: `Seller Application: ${newStatus}`,
       message:
         adminFeedback ||
-        `Your AIDOMART seller application status is now ${newStatus}.`,
+        `Your AIDOOMART seller application status is now ${newStatus}.`,
       link: '/seller-dashboard',
       type: 'seller_review',
     });
@@ -423,12 +423,12 @@ adminRouter.post('/sellers/:profileId/review', async (req: Request, res: Respons
   const emailRes = await sendTransactionalEmail({
     toEmail: profile.email,
     toName: profile.business_name,
-    subject: `AIDOMART Seller Application Update — ${newStatus}`,
+    subject: `AIDOOMART Seller Application Update — ${newStatus}`,
     eventType: `seller_review_${newStatus.toLowerCase().replace(/\s+/g, '_')}`,
     headline: `Seller Application: ${newStatus}`,
     bodyHtml: `
       <p>Hello ${escapeHtml(profile.legal_name)},</p>
-      <p>An AIDOMART administrator has reviewed your seller application for <strong>${escapeHtml(profile.business_name)}</strong>.</p>
+      <p>An AIDOOMART administrator has reviewed your seller application for <strong>${escapeHtml(profile.business_name)}</strong>.</p>
       <p><strong>Updated Status:</strong> ${escapeHtml(newStatus)}<br/>
          <strong>Verified Seller Badge:</strong> ${grantVerifiedBadge ? 'Granted' : 'Not Granted'}</p>
       ${adminFeedback ? `<p><strong>Administrator Notes:</strong> ${escapeHtml(adminFeedback)}</p>` : ''}

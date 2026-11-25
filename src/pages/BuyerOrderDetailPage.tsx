@@ -252,7 +252,7 @@ export function BuyerOrderDetailPage({ orderId, onNavigate }: BuyerOrderDetailPa
 
   const whatsappUrl = buildWhatsAppUrl(
     order.sellerPhone,
-    `Hello ${order.sellerBusinessName}, following up on AIDOMART order ${order.orderReference}.`
+    `Hello ${order.sellerBusinessName}, following up on AIDOOMART order ${order.orderReference}.`
   );
 
   return (

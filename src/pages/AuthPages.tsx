@@ -439,7 +439,7 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
           <>
             <div>
               <h1 className="font-display text-xl sm:text-2xl font-bold text-[#0B1F3A]">
-                Sign in to AIDOMART
+                Sign in to AIDOOMART
               </h1>
               <p className="text-sm text-slate-600 mt-1">
                 Access your Buyer or Seller account securely.
@@ -713,7 +713,7 @@ export function AuthPages({ mode, initialQuery, onNavigate }: AuthPagesProps) {
           <>
             <div>
               <h1 className="font-display text-2xl font-bold text-[#0B1F3A]">
-                Create Your AIDOMART Account
+                Create Your AIDOOMART Account
               </h1>
               <p className="text-sm text-slate-600 mt-1">
                 Select whether you are registering to shop as a Buyer or to apply as an independent Seller.
