@@ -22,7 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<PlatformSettings>({
-    promoCreatorPolicy: 'buyer',
+    promoCreatorPolicy: 'seller',
     requireLoginEmailOtp: true,
   });
 

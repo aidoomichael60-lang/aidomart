@@ -18,6 +18,7 @@ import {
   ShoppingBag,
   Star,
   Store,
+  Tag,
   Trash2,
   Truck,
   Upload,
@@ -41,6 +42,7 @@ import type {
 import { VerifiedBadge } from '../components/VerifiedBadge';
 import { SafeAssetImage } from '../components/SafeAssetImage';
 import { PhoneInput } from '../components/PhoneInput';
+import { PromoManagerPanel } from '../components/PromoManagerPanel';
 import { WhatsAppIcon, buildWhatsAppUrl } from '../components/WhatsAppIcon';
 import { useLoginGreeting } from '../utils/greeting';
 
@@ -53,6 +55,7 @@ type SellerTab =
   | 'overview'
   | 'profile'
   | 'products'
+  | 'promotions'
   | 'orders'
   | 'messages'
   | 'payments'
@@ -62,6 +65,7 @@ function normalizeSellerTab(rawTab: string | null | undefined): SellerTab {
   if (!rawTab) return 'overview';
   if (rawTab === 'application' || rawTab === 'profile') return 'profile';
   if (rawTab === 'payment-settings' || rawTab === 'payments') return 'payments';
+  if (rawTab === 'promos' || rawTab === 'promotions') return 'promotions';
   if (
     rawTab === 'overview' ||
     rawTab === 'products' ||
@@ -845,6 +849,7 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
     { id: 'overview', label: 'Overview', icon: <BarChart3 className="w-4 h-4" /> },
     { id: 'profile', label: 'Profile & Verification', icon: <Store className="w-4 h-4" /> },
     { id: 'products', label: 'Products', icon: <ShoppingBag className="w-4 h-4" /> },
+    { id: 'promotions', label: 'Promotions', icon: <Tag className="w-4 h-4" /> },
     { id: 'orders', label: 'Orders & Tracking', icon: <Package className="w-4 h-4" /> },
     {
       id: 'messages',
@@ -2627,6 +2632,9 @@ export function SellerDashboard({ initialQuery, onNavigate }: SellerDashboardPro
           </div>
         </div>
       )}
+
+      {/* PROMOTIONS */}
+      {tab === 'promotions' && <PromoManagerPanel sellerProducts={products} />}
 
       {/* COMPLAINTS & REVIEWS */}
       {tab === 'feedback' && (

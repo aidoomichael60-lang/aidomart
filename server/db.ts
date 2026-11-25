@@ -257,7 +257,11 @@ export function initDatabase() {
       selected_variation TEXT NOT NULL DEFAULT '',
       quantity INTEGER NOT NULL CHECK (quantity > 0),
       unit_price REAL NOT NULL,
-      line_total REAL NOT NULL
+      line_total REAL NOT NULL,
+      promo_code_used TEXT,
+      discount_percent REAL NOT NULL DEFAULT 0,
+      discount_amount REAL NOT NULL DEFAULT 0,
+      final_line_total REAL NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS payments (
@@ -317,13 +321,36 @@ export function initDatabase() {
     CREATE TABLE IF NOT EXISTS promo_codes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       code TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL DEFAULT '',
+      campaign_type TEXT NOT NULL DEFAULT 'General Promotion',
       discount_percent REAL NOT NULL CHECK (discount_percent > 0 AND discount_percent <= 90),
+      applies_to TEXT NOT NULL DEFAULT 'all' CHECK (applies_to IN ('all', 'selected')),
+      first_time_only INTEGER NOT NULL DEFAULT 0,
       starts_at TEXT NOT NULL,
       expires_at TEXT NOT NULL,
       manually_ended INTEGER NOT NULL DEFAULT 0,
+      seller_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       created_by_user_id INTEGER NOT NULL REFERENCES users(id),
       extension_count INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS promo_code_products (
+      promo_code_id INTEGER NOT NULL REFERENCES promo_codes(id) ON DELETE CASCADE,
+      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      PRIMARY KEY (promo_code_id, product_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS promo_redemptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      promo_code_id INTEGER NOT NULL REFERENCES promo_codes(id) ON DELETE CASCADE,
+      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      buyer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      seller_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      discount_amount REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(promo_code_id, order_id)
     );
 
     CREATE TABLE IF NOT EXISTS promo_audit_logs (
@@ -432,6 +459,40 @@ export function initDatabase() {
     }
   }
 
+  const orderItemCols = (db.prepare(`PRAGMA table_info(order_items)`).all() as Array<{ name: string }>).map(
+    (c) => c.name
+  );
+  const missingOrderItemCols: Array<{ col: string; def: string }> = [
+    { col: 'promo_code_used', def: `TEXT` },
+    { col: 'discount_percent', def: `REAL NOT NULL DEFAULT 0` },
+    { col: 'discount_amount', def: `REAL NOT NULL DEFAULT 0` },
+    { col: 'final_line_total', def: `REAL NOT NULL DEFAULT 0` },
+  ];
+  for (const { col, def } of missingOrderItemCols) {
+    if (!orderItemCols.includes(col)) {
+      db.exec(`ALTER TABLE order_items ADD COLUMN ${col} ${def};`);
+    }
+  }
+
+  const promoCols = (db.prepare(`PRAGMA table_info(promo_codes)`).all() as Array<{ name: string }>).map(
+    (c) => c.name
+  );
+  const missingPromoCols: Array<{ col: string; def: string }> = [
+    { col: 'title', def: `TEXT NOT NULL DEFAULT ''` },
+    { col: 'campaign_type', def: `TEXT NOT NULL DEFAULT 'General Promotion'` },
+    { col: 'applies_to', def: `TEXT NOT NULL DEFAULT 'all'` },
+    { col: 'first_time_only', def: `INTEGER NOT NULL DEFAULT 0` },
+    { col: 'seller_id', def: `INTEGER REFERENCES users(id) ON DELETE CASCADE` },
+    { col: 'updated_at', def: `TEXT NOT NULL DEFAULT ''` },
+  ];
+  for (const { col, def } of missingPromoCols) {
+    if (!promoCols.includes(col)) {
+      db.exec(`ALTER TABLE promo_codes ADD COLUMN ${col} ${def};`);
+    }
+  }
+  db.exec(`UPDATE promo_codes SET seller_id = created_by_user_id WHERE seller_id IS NULL;`);
+  db.exec(`UPDATE promo_codes SET updated_at = created_at WHERE updated_at = '';`);
+
   // Seed official marketplace categories idempotently (no fake products!)
   const defaultCategories = [
     { name: 'Accessories', slug: 'accessories', description: 'Everyday carry, bags, belts, eyewear, and lifestyle accessories.' },
@@ -467,11 +528,12 @@ export function initDatabase() {
     insertCat.run(cat.name, cat.slug, cat.description);
   }
 
-  // Seed platform settings idempotently
+  // Seed platform settings idempotently (seller-controlled promotions)
   const insertSetting = db.prepare(
     `INSERT OR IGNORE INTO platform_settings (key, value) VALUES (?, ?)`
   );
-  insertSetting.run('promo_creator_policy', 'buyer');
+  insertSetting.run('promo_creator_policy', 'seller');
+  db.prepare(`UPDATE platform_settings SET value = 'seller' WHERE key = 'promo_creator_policy' AND value = 'buyer'`).run();
   insertSetting.run('require_login_email_otp', 'true');
 
   // Enforce strict single-Administrator invariant (aidoomichael60@gmail.com only)

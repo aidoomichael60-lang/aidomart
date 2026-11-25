@@ -8,12 +8,10 @@ import {
   Send,
   Settings,
   Star,
-  Tag,
 } from 'lucide-react';
 import { apiRequest, subscribeDataChanged } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import type { BuyerConversation, Complaint, Order } from '../types/marketplace';
-import { PromoManagerPanel } from '../components/PromoManagerPanel';
 import { VerifiedBadge } from '../components/VerifiedBadge';
 import { SafeAssetImage } from '../components/SafeAssetImage';
 import { WhatsAppIcon, buildWhatsAppUrl } from '../components/WhatsAppIcon';
@@ -24,17 +22,16 @@ interface BuyerDashboardProps {
   onNavigate: (path: string) => void;
 }
 
-type BuyerTab = 'orders' | 'messages' | 'reviews' | 'promos' | 'complaints' | 'profile';
+type BuyerTab = 'orders' | 'messages' | 'reviews' | 'complaints' | 'profile';
 
 export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps) {
-  const { user, refreshUser, settings } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { greeting } = useLoginGreeting(user);
   const [tab, setTab] = useState<BuyerTab>(() => {
     const qTab = initialQuery?.get('tab');
     if (
       qTab === 'messages' ||
       qTab === 'reviews' ||
-      qTab === 'promos' ||
       qTab === 'complaints' ||
       qTab === 'profile'
     ) {
@@ -125,7 +122,6 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
       qTab === 'orders' ||
       qTab === 'messages' ||
       qTab === 'reviews' ||
-      qTab === 'promos' ||
       qTab === 'complaints' ||
       qTab === 'profile'
     ) {
@@ -269,9 +265,6 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
       icon: <MessageSquare className="w-4 h-4" />,
     },
     { id: 'reviews', label: 'Product Reviews', icon: <Star className="w-4 h-4" /> },
-    ...(settings.promoCreatorPolicy === 'buyer' || settings.promoCreatorPolicy === 'both'
-      ? [{ id: 'promos' as BuyerTab, label: 'Promotional Codes', icon: <Tag className="w-4 h-4" /> }]
-      : []),
     { id: 'complaints', label: 'Complaints & Feedback', icon: <MessageSquareWarning className="w-4 h-4" /> },
     { id: 'profile', label: 'Account Settings', icon: <Settings className="w-4 h-4" /> },
   ];
@@ -731,9 +724,6 @@ export function BuyerDashboard({ initialQuery, onNavigate }: BuyerDashboardProps
           </div>
         </div>
       )}
-
-      {/* PROMOS */}
-      {tab === 'promos' && <PromoManagerPanel />}
 
       {/* COMPLAINTS */}
       {tab === 'complaints' && (

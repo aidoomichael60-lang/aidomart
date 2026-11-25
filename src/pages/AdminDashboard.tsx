@@ -504,31 +504,14 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
-                <p className="font-bold text-[#0B1F3A]">Promo Code Creator Permission Policy</p>
+                <p className="font-bold text-[#0B1F3A]">Seller-Controlled Promotions Policy</p>
                 <p className="text-slate-600">
-                  Confirm whether promo-code creation is permitted for buyers, sellers, or both:
+                  Promotional codes and product-level discounts are strictly managed by individual sellers inside their
+                  Seller Dashboard. Buyers only redeem codes manually entered at checkout.
                 </p>
-                <select
-                  value={overview.settings.promoCreatorPolicy}
-                  onChange={async (e) => {
-                    try {
-                      await apiRequest('/api/admin/settings', {
-                        method: 'PUT',
-                        body: { promoCreatorPolicy: e.target.value },
-                      });
-                      showSuccess('Promo creator policy updated.');
-                      await loadAdminData();
-                      await refreshUser();
-                    } catch (err: any) {
-                      showError(err?.message || 'Could not update promo policy.');
-                    }
-                  }}
-                  className="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg bg-white font-semibold"
-                >
-                  <option value="buyer">Buyers Only</option>
-                  <option value="seller">Sellers Only</option>
-                  <option value="both">Both Buyers and Sellers</option>
-                </select>
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold">
+                  Sellers Only (Product &amp; Store Scoped)
+                </div>
               </div>
 
               <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-2">

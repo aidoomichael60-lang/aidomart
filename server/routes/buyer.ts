@@ -5,6 +5,11 @@ import { db, createNotification } from '../db.ts';
 import { escapeHtml, generateOrderReference, sanitizeText } from '../security.ts';
 import { sendTransactionalEmail } from '../email.ts';
 import { getAppBaseUrl, requireAuth, requireRole } from '../middleware.ts';
+import {
+  evaluateCartPromotions,
+  normalizePromoCodesInput,
+  type EvaluatedCartItem,
+} from '../promoEngine.ts';
 
 export const buyerRouter = Router();
 
@@ -13,7 +18,10 @@ function formatOrderDetail(orderRow: Record<string, any>) {
     .prepare(
       `SELECT id, order_id AS orderId, product_id AS productId, product_title AS productTitle,
               product_image AS productImage, selected_variation AS selectedVariation,
-              quantity, unit_price AS unitPrice, line_total AS lineTotal
+              quantity, unit_price AS unitPrice, line_total AS lineTotal,
+              promo_code_used AS promoCodeUsed, discount_percent AS discountPercent,
+              discount_amount AS discountAmount,
+              CASE WHEN final_line_total > 0 THEN final_line_total ELSE line_total END AS finalLineTotal
        FROM order_items WHERE order_id = ?`
     )
     .all(orderRow.id);
@@ -123,7 +131,7 @@ buyerRouter.post('/orders/checkout', requireAuth, requireRole('buyer'), async (r
     const deliveryAddress = sanitizeText(req.body?.deliveryAddress, 300);
     const deliveryNotes = sanitizeText(req.body?.deliveryNotes, 400);
     const buyerPhone = sanitizeText(req.body?.buyerPhone, 40) || buyer.phone || '';
-    const promoCodeRaw = sanitizeText(req.body?.promoCode, 40).toUpperCase();
+    const promoCodes = normalizePromoCodesInput(req.body?.promoCodes, req.body?.promoCode);
 
     if (rawItems.length === 0) {
       return res.status(400).json({ error: 'Your shopping cart is empty.' });
@@ -135,48 +143,7 @@ buyerRouter.post('/orders/checkout', requireAuth, requireRole('buyer'), async (r
       return res.status(400).json({ error: 'Please enter a delivery address.' });
     }
 
-    // Validate promo code server-side
-    let appliedPromoCode: string | null = null;
-    let discountPercent = 0;
-    if (promoCodeRaw) {
-      const promo = db.prepare(`SELECT * FROM promo_codes WHERE UPPER(code) = ?`).get(promoCodeRaw) as
-        | {
-            code: string;
-            discount_percent: number;
-            starts_at: string;
-            expires_at: string;
-            manually_ended: number;
-          }
-        | undefined;
-      if (!promo) {
-        return res.status(400).json({ error: 'The entered promotional code does not exist.' });
-      }
-      const now = Date.now();
-      if (
-        promo.manually_ended ||
-        now < new Date(promo.starts_at).getTime() ||
-        now >= new Date(promo.expires_at).getTime()
-      ) {
-        return res.status(400).json({ error: 'This promotional code is inactive or has expired.' });
-      }
-      appliedPromoCode = promo.code;
-      discountPercent = Number(promo.discount_percent);
-    }
-
     const checkoutBatchRef = `BATCH-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-
-    interface ValidatedItem {
-      productId: number;
-      sellerId: number;
-      sellerEmail: string;
-      sellerBusinessName: string;
-      title: string;
-      image: string | null;
-      selectedVariation: string;
-      quantity: number;
-      unitPrice: number;
-      lineTotal: number;
-    }
 
     const createdOrdersInfo: Array<{
       orderId: number;
@@ -185,75 +152,56 @@ buyerRouter.post('/orders/checkout', requireAuth, requireRole('buyer'), async (r
       sellerEmail: string;
       sellerBusinessName: string;
       totalAmount: number;
-      items: ValidatedItem[];
+      items: EvaluatedCartItem[];
     }> = [];
 
     const tx = db.transaction(() => {
-      const groupedBySeller = new Map<number, ValidatedItem[]>();
+      const evaluation = evaluateCartPromotions({
+        items: rawItems,
+        promoCodes,
+        buyerId: buyer.id,
+        requireStock: true,
+      });
 
-      for (const entry of rawItems) {
-        const productId = Number(entry?.productId);
-        const quantity = Math.floor(Number(entry?.quantity));
-        const selectedVariation = sanitizeText(entry?.selectedVariation, 160);
+      const groupedBySeller = new Map<number, EvaluatedCartItem[]>();
+      const decrementStock = db.prepare(
+        `UPDATE products SET stock = stock - ?, updated_at = datetime('now') WHERE id = ? AND stock >= ?`
+      );
 
-        if (!Number.isFinite(productId) || !Number.isFinite(quantity) || quantity <= 0) {
-          throw new Error('Invalid product quantity in cart.');
+      for (const itemObj of evaluation.items) {
+        const upd = decrementStock.run(itemObj.quantity, itemObj.productId, itemObj.quantity);
+        if (upd.changes === 0) {
+          throw new Error(`Insufficient stock for "${itemObj.title}".`);
         }
-
-        const product = db
-          .prepare(
-            `SELECT p.*, sp.application_status, sp.business_name, u.email AS seller_email, u.account_status AS seller_account_status
-             FROM products p
-             JOIN seller_profiles sp ON sp.user_id = p.seller_id
-             JOIN users u ON u.id = p.seller_id
-             WHERE p.id = ?`
-          )
-          .get(productId) as Record<string, any> | undefined;
-
-        if (!product || !product.published || product.moderated_reason) {
-          throw new Error(`A selected product is no longer available.`);
-        }
-        if (product.application_status !== 'Approved' || product.seller_account_status !== 'Active') {
-          throw new Error(`Seller for "${product.title}" is not currently active.`);
-        }
-        if (product.stock < quantity) {
-          throw new Error(`Insufficient stock for "${product.title}". Available: ${product.stock}.`);
-        }
-
-        const unitPrice = Number(product.price);
-        const lineTotal = Number((unitPrice * quantity).toFixed(2));
-        const images = JSON.parse(product.images_json || '[]') as string[];
-
-        const itemObj: ValidatedItem = {
-          productId: product.id,
-          sellerId: product.seller_id,
-          sellerEmail: product.seller_email,
-          sellerBusinessName: product.business_name,
-          title: product.title,
-          image: images[0] || null,
-          selectedVariation,
-          quantity,
-          unitPrice,
-          lineTotal,
-        };
-
-        const list = groupedBySeller.get(product.seller_id) || [];
+        const list = groupedBySeller.get(itemObj.sellerId) || [];
         list.push(itemObj);
-        groupedBySeller.set(product.seller_id, list);
-
-        db.prepare(`UPDATE products SET stock = stock - ?, updated_at = datetime('now') WHERE id = ?`).run(
-          quantity,
-          product.id
-        );
+        groupedBySeller.set(itemObj.sellerId, list);
       }
 
       // Create one independent seller-specific order per seller (no automatic payment splitting!)
       for (const [sellerId, sellerItems] of groupedBySeller.entries()) {
         const subtotalAmount = Number(
-          sellerItems.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2)
+          sellerItems.reduce((sum, item) => sum + item.originalLineTotal, 0).toFixed(2)
         );
-        const discountAmount = Number(((subtotalAmount * discountPercent) / 100).toFixed(2));
+        const discountAmount = Number(
+          sellerItems.reduce((sum, item) => sum + item.discountAmount, 0).toFixed(2)
+        );
         const totalAmount = Number(Math.max(0, subtotalAmount - discountAmount).toFixed(2));
+
+        const usedCodesForSeller = Array.from(
+          new Set(sellerItems.map((i) => i.appliedPromoCode).filter((c): c is string => Boolean(c)))
+        );
+        const orderPromoCodeUsed = usedCodesForSeller.length > 0 ? usedCodesForSeller.join(', ') : null;
+
+        const usedPercentsForSeller = Array.from(
+          new Set(sellerItems.filter((i) => i.discountPercent > 0).map((i) => i.discountPercent))
+        );
+        const orderDiscountPercent =
+          discountAmount > 0 && subtotalAmount > 0
+            ? usedPercentsForSeller.length === 1
+              ? usedPercentsForSeller[0]
+              : Number(((discountAmount / subtotalAmount) * 100).toFixed(2))
+            : 0;
 
         let orderReference = generateOrderReference();
         while (db.prepare(`SELECT id FROM orders WHERE order_reference = ?`).get(orderReference)) {
@@ -280,8 +228,8 @@ buyerRouter.post('/orders/checkout', requireAuth, requireRole('buyer'), async (r
             fulfillmentMethod,
             deliveryAddress,
             deliveryNotes,
-            appliedPromoCode,
-            discountPercent,
+            orderPromoCodeUsed,
+            orderDiscountPercent,
             subtotalAmount,
             discountAmount,
             totalAmount
@@ -291,8 +239,9 @@ buyerRouter.post('/orders/checkout', requireAuth, requireRole('buyer'), async (r
 
         const insertItem = db.prepare(
           `INSERT INTO order_items (
-            order_id, product_id, product_title, product_image, selected_variation, quantity, unit_price, line_total
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+            order_id, product_id, product_title, product_image, selected_variation, quantity,
+            unit_price, line_total, promo_code_used, discount_percent, discount_amount, final_line_total
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         );
         for (const it of sellerItems) {
           insertItem.run(
@@ -303,8 +252,30 @@ buyerRouter.post('/orders/checkout', requireAuth, requireRole('buyer'), async (r
             it.selectedVariation,
             it.quantity,
             it.unitPrice,
-            it.lineTotal
+            it.originalLineTotal,
+            it.appliedPromoCode,
+            it.discountPercent,
+            it.discountAmount,
+            it.finalLineTotal
           );
+        }
+
+        // Record redemptions for each promo code applied to this seller order
+        const promoTotals = new Map<number, number>();
+        for (const it of sellerItems) {
+          if (it.promoCodeId && it.discountAmount > 0) {
+            promoTotals.set(
+              it.promoCodeId,
+              Number(((promoTotals.get(it.promoCodeId) || 0) + it.discountAmount).toFixed(2))
+            );
+          }
+        }
+        const insertRedemption = db.prepare(
+          `INSERT INTO promo_redemptions (promo_code_id, order_id, buyer_id, seller_id, discount_amount)
+           VALUES (?, ?, ?, ?, ?)`
+        );
+        for (const [promoId, promoDiscAmt] of promoTotals.entries()) {
+          insertRedemption.run(promoId, orderId, buyer.id, sellerId, promoDiscAmt);
         }
 
         const paymentRes = db
@@ -360,7 +331,7 @@ buyerRouter.post('/orders/checkout', requireAuth, requireRole('buyer'), async (r
       const itemsRowsHtml = ord.items
         .map(
           (i) =>
-            `<li><strong>${escapeHtml(i.title)}</strong>${i.selectedVariation ? ` (${escapeHtml(i.selectedVariation)})` : ''} × ${i.quantity} — GHS ${i.lineTotal.toFixed(2)}</li>`
+            `<li><strong>${escapeHtml(i.title)}</strong>${i.selectedVariation ? ` (${escapeHtml(i.selectedVariation)})` : ''} × ${i.quantity} — GHS ${i.finalLineTotal.toFixed(2)}${i.discountAmount > 0 ? ` <em>(${i.discountPercent}% off via ${escapeHtml(i.appliedPromoCode || '')})</em>` : ''}</li>`
         )
         .join('');
 

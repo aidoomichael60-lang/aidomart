@@ -258,7 +258,7 @@ async function recordLoginDeviceAndNotify(
 }
 
 authRouter.get('/me', (req: Request, res: Response) => {
-  const promoCreatorPolicy = getPlatformSetting('promo_creator_policy', 'buyer');
+  const promoCreatorPolicy = getPlatformSetting('promo_creator_policy', 'seller');
   const requireLoginEmailOtp = getPlatformSetting('require_login_email_otp', 'true') === 'true';
 
   if (!req.authUser) {

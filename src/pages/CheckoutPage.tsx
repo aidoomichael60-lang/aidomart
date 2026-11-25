@@ -1,11 +1,38 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Lock, Tag } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Lock, Tag, X } from 'lucide-react';
 import { apiRequest } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 
 interface CheckoutPageProps {
   onNavigate: (path: string) => void;
+}
+
+interface AppliedPromoInfo {
+  promoCodeId: number;
+  code: string;
+  title: string;
+  campaignType: string;
+  discountPercent: number;
+  firstTimeOnly: boolean;
+  appliesTo: 'all' | 'selected';
+  sellerId: number;
+  sellerBusinessName: string;
+  affectedProductIds: number[];
+  totalDiscount: number;
+}
+
+interface EvaluatedLineItem {
+  productId: number;
+  title: string;
+  quantity: number;
+  unitPrice: number;
+  originalLineTotal: number;
+  appliedPromoCode: string | null;
+  appliedPromoTitle: string | null;
+  discountPercent: number;
+  discountAmount: number;
+  finalLineTotal: number;
 }
 
 export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
@@ -30,7 +57,15 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
   const [deliveryNotes, setDeliveryNotes] = useState('');
 
   const [promoInput, setPromoInput] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountPercent: number } | null>(null);
+  const [appliedCodes, setAppliedCodes] = useState<string[]>([]);
+  const [appliedPromos, setAppliedPromos] = useState<AppliedPromoInfo[]>([]);
+  const [evaluatedItems, setEvaluatedItems] = useState<EvaluatedLineItem[]>([]);
+  const [serverTotals, setServerTotals] = useState<{
+    subtotalAmount: number;
+    discountAmount: number;
+    finalTotalAmount: number;
+  } | null>(null);
+  const [validatingPromo, setValidatingPromo] = useState(false);
   const [promoError, setPromoError] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
@@ -55,23 +90,115 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
     return Array.from(map.entries());
   }, [items]);
 
-  const discountAmount = appliedPromo
-    ? Number(((subtotal * appliedPromo.discountPercent) / 100).toFixed(2))
-    : 0;
-  const finalTotal = Math.max(0, Number((subtotal - discountAmount).toFixed(2)));
+  const revalidateCodes = useCallback(
+    async (codesToCheck: string[], quiet = false) => {
+      if (codesToCheck.length === 0 || items.length === 0) {
+        setAppliedPromos([]);
+        setEvaluatedItems([]);
+        setServerTotals(null);
+        return true;
+      }
+
+      setValidatingPromo(true);
+      try {
+        const res = await apiRequest<{
+          valid: boolean;
+          appliedPromos: AppliedPromoInfo[];
+          items: EvaluatedLineItem[];
+          subtotalAmount: number;
+          discountAmount: number;
+          finalTotalAmount: number;
+        }>('/api/marketplace/promo/validate', {
+          method: 'POST',
+          body: {
+            codes: codesToCheck,
+            items: items.map((it) => ({
+              productId: it.product.id,
+              quantity: it.quantity,
+              selectedVariation: it.selectedVariation,
+            })),
+          },
+        });
+        setAppliedPromos(res.appliedPromos || []);
+        setEvaluatedItems(res.items || []);
+        setServerTotals({
+          subtotalAmount: res.subtotalAmount,
+          discountAmount: res.discountAmount,
+          finalTotalAmount: res.finalTotalAmount,
+        });
+        if (!quiet) setPromoError('');
+        return true;
+      } catch (err: any) {
+        if (!quiet) {
+          setPromoError(err?.message || 'This promotional code is invalid or does not apply.');
+        }
+        return false;
+      } finally {
+        setValidatingPromo(false);
+      }
+    },
+    [items]
+  );
+
+  // Re-evaluate already applied codes if cart items/quantities change
+  useEffect(() => {
+    if (appliedCodes.length === 0) {
+      setAppliedPromos([]);
+      setEvaluatedItems([]);
+      setServerTotals(null);
+      return;
+    }
+    revalidateCodes(appliedCodes, true).then((ok) => {
+      if (!ok) {
+        setAppliedCodes([]);
+        setAppliedPromos([]);
+        setEvaluatedItems([]);
+        setServerTotals(null);
+      }
+    });
+  }, [items, appliedCodes, revalidateCodes]);
+
+  const evaluatedByProductId = useMemo(() => {
+    const map = new Map<number, EvaluatedLineItem>();
+    for (const ev of evaluatedItems) {
+      map.set(ev.productId, ev);
+    }
+    return map;
+  }, [evaluatedItems]);
+
+  const displaySubtotal = serverTotals ? serverTotals.subtotalAmount : subtotal;
+  const discountAmount = serverTotals ? serverTotals.discountAmount : 0;
+  const finalTotal = serverTotals ? serverTotals.finalTotalAmount : subtotal;
 
   const handleValidatePromo = async () => {
     setPromoError('');
-    if (!promoInput.trim()) return;
-    try {
-      const res = await apiRequest<{ valid: boolean; code: string; discountPercent: number }>(
-        '/api/marketplace/promo/validate',
-        { method: 'POST', body: { code: promoInput.trim() } }
-      );
-      setAppliedPromo({ code: res.code, discountPercent: res.discountPercent });
-    } catch (err: any) {
-      setAppliedPromo(null);
-      setPromoError(err.message || 'Invalid promotional code.');
+    const candidate = promoInput.trim().toUpperCase();
+    if (!candidate) {
+      setPromoError('Please enter a promotional code.');
+      return;
+    }
+    if (appliedCodes.includes(candidate)) {
+      setPromoError(`Promotional code "${candidate}" has already been applied.`);
+      return;
+    }
+    const nextCodes = [...appliedCodes, candidate];
+    const ok = await revalidateCodes(nextCodes, false);
+    if (ok) {
+      setAppliedCodes(nextCodes);
+      setPromoInput('');
+    }
+  };
+
+  const handleRemovePromoCode = async (codeToRemove: string) => {
+    setPromoError('');
+    const nextCodes = appliedCodes.filter((c) => c !== codeToRemove);
+    setAppliedCodes(nextCodes);
+    if (nextCodes.length > 0) {
+      await revalidateCodes(nextCodes, true);
+    } else {
+      setAppliedPromos([]);
+      setEvaluatedItems([]);
+      setServerTotals(null);
     }
   };
 
@@ -100,7 +227,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
           buyerPhone,
           deliveryAddress,
           deliveryNotes,
-          promoCode: appliedPromo?.code || '',
+          promoCodes: appliedCodes,
         },
       });
       setCreatedOrders(res.orders || []);
@@ -333,27 +460,70 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
 
           <div className="space-y-4 divide-y divide-slate-100">
             {sellerGroups.map(([sellerId, group]) => (
-              <div key={sellerId} className="pt-3 first:pt-0 space-y-2 min-w-0">
+              <div key={sellerId} className="pt-3 first:pt-0 space-y-2.5 min-w-0">
                 <p className="text-xs font-semibold text-[#0B1F3A] break-words">
                   Seller: {group.sellerName}
                 </p>
                 {group.items.map((it) => {
                   const isUnavailable = Boolean(it.unavailableReason) || it.product.stock <= 0;
+                  const ev = evaluatedByProductId.get(it.product.id);
+                  const origTotal = Number((it.product.price * it.quantity).toFixed(2));
+                  const hasPromo = Boolean(ev && ev.discountAmount > 0);
+                  const lineFinal = hasPromo && ev ? ev.finalLineTotal : origTotal;
+
                   return (
                     <div
                       key={`${it.product.id}-${it.selectedVariation}`}
-                      className={`flex items-start justify-between text-xs gap-2 min-w-0 ${
-                        isUnavailable ? 'text-red-700 bg-red-50 px-2 py-1.5 rounded' : 'text-slate-700'
+                      className={`rounded-lg p-2 -mx-2 space-y-1 text-xs min-w-0 ${
+                        isUnavailable
+                          ? 'text-red-700 bg-red-50'
+                          : hasPromo
+                            ? 'bg-emerald-50/50 border border-emerald-200/80 text-slate-800'
+                            : 'text-slate-700'
                       }`}
                     >
-                      <span className="min-w-0 flex-1 break-words">
-                        {it.product.title}
-                        {it.selectedVariation ? ` (${it.selectedVariation})` : ''} × {it.quantity}
-                        {isUnavailable ? ` — ${it.unavailableReason || 'No longer available'}` : ''}
-                      </span>
-                      <span className="font-mono tabular-nums shrink-0 whitespace-nowrap">
-                        {isUnavailable ? 'Unavailable' : `GHS ${(it.product.price * it.quantity).toFixed(2)}`}
-                      </span>
+                      <div className="flex items-start justify-between gap-2 min-w-0">
+                        <span className="min-w-0 flex-1 break-words font-medium">
+                          {it.product.title}
+                          {it.selectedVariation ? ` (${it.selectedVariation})` : ''} × {it.quantity}
+                          {isUnavailable ? ` — ${it.unavailableReason || 'No longer available'}` : ''}
+                        </span>
+                        <div className="text-right shrink-0 whitespace-nowrap font-mono tabular-nums">
+                          {isUnavailable ? (
+                            'Unavailable'
+                          ) : hasPromo ? (
+                            <div>
+                              <span className="line-through text-slate-400 mr-1.5 text-[11px]">
+                                GHS {origTotal.toFixed(2)}
+                              </span>
+                              <span className="font-bold text-emerald-700">
+                                GHS {lineFinal.toFixed(2)}
+                              </span>
+                            </div>
+                          ) : (
+                            <span>GHS {origTotal.toFixed(2)}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {!isUnavailable && (
+                        <div className="flex items-center justify-between text-[11px]">
+                          {hasPromo && ev ? (
+                            <>
+                              <span className="font-semibold text-emerald-700">
+                                Promo {ev.appliedPromoCode}: {ev.discountPercent}% OFF
+                              </span>
+                              <span className="font-mono text-emerald-700 tabular-nums">
+                                -GHS {ev.discountAmount.toFixed(2)}
+                              </span>
+                            </>
+                          ) : appliedPromos.length > 0 ? (
+                            <span className="text-slate-500">
+                              No promotional discount (original price applies)
+                            </span>
+                          ) : null}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -361,46 +531,88 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
             ))}
           </div>
 
-          {/* Promo Code */}
-          <div className="pt-4 border-t border-slate-200 space-y-2 min-w-0">
-            <label className="block text-xs font-semibold text-slate-700">
-              Promotional Code
+          {/* Seller-Controlled Promo Code Entry (never auto-displayed or auto-applied) */}
+          <div className="pt-4 border-t border-slate-200 space-y-2.5 min-w-0">
+            <label htmlFor="checkout-promo-input" className="block text-xs font-semibold text-slate-700">
+              Enter Promo Code
             </label>
             <div className="flex gap-2 min-w-0">
               <div className="relative flex-1 min-w-0">
                 <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
+                  id="checkout-promo-input"
                   type="text"
                   value={promoInput}
                   onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
-                  placeholder="Enter promo code"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleValidatePromo();
+                    }
+                  }}
+                  placeholder="Enter Promo Code"
                   className="w-full min-w-0 pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-base sm:text-xs font-mono uppercase"
                 />
               </div>
               <button
                 type="button"
+                disabled={validatingPromo}
                 onClick={handleValidatePromo}
-                className="shrink-0 px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-800 whitespace-nowrap"
+                className="shrink-0 px-3.5 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#122E53] disabled:opacity-60 text-xs font-semibold text-white whitespace-nowrap"
               >
-                Apply
+                {validatingPromo ? 'Checking...' : 'Apply'}
               </button>
             </div>
-            {promoError && <p className="text-xs text-red-600 break-words">{promoError}</p>}
-            {appliedPromo && (
-              <p className="text-xs text-emerald-700 font-medium break-words">
-                Applied {appliedPromo.code}: {appliedPromo.discountPercent}% discount
+            {promoError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2.5 break-words">
+                {promoError}
               </p>
+            )}
+
+            {appliedPromos.length > 0 && (
+              <div className="space-y-1.5">
+                {appliedPromos.map((ap) => (
+                  <div
+                    key={ap.promoCodeId}
+                    className="flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs text-emerald-800"
+                  >
+                    <div className="min-w-0">
+                      <span className="font-mono font-bold">{ap.code}</span>
+                      <span className="ml-1.5 font-semibold">({ap.discountPercent}% off)</span>
+                      <span className="block text-[11px] text-emerald-700 truncate">
+                        {ap.title} · {ap.sellerBusinessName} · -GHS {ap.totalDiscount.toFixed(2)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePromoCode(ap.code)}
+                      aria-label={`Remove promo code ${ap.code}`}
+                      className="p-1 rounded hover:bg-emerald-100 text-emerald-700 shrink-0"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
           <div className="pt-4 border-t border-slate-200 space-y-2 text-sm">
             <div className="flex justify-between text-slate-600">
-              <span>Subtotal</span>
-              <span className="font-mono tabular-nums">GHS {subtotal.toFixed(2)}</span>
+              <span>Original Subtotal</span>
+              <span className="font-mono tabular-nums">GHS {displaySubtotal.toFixed(2)}</span>
             </div>
+            {appliedPromos.map((ap) => (
+              <div key={ap.promoCodeId} className="flex justify-between text-emerald-700 text-xs">
+                <span>
+                  Discount ({ap.code} · {ap.discountPercent}% off)
+                </span>
+                <span className="font-mono tabular-nums">-GHS {ap.totalDiscount.toFixed(2)}</span>
+              </div>
+            ))}
             {discountAmount > 0 && (
-              <div className="flex justify-between text-emerald-700">
-                <span>Promo Discount ({appliedPromo?.discountPercent}%)</span>
+              <div className="flex justify-between text-emerald-700 font-semibold">
+                <span>Total Deducted</span>
                 <span className="font-mono tabular-nums">-GHS {discountAmount.toFixed(2)}</span>
               </div>
             )}

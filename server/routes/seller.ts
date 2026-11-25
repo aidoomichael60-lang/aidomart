@@ -890,7 +890,10 @@ sellerRouter.get('/orders', (req: Request, res: Response) => {
       .prepare(
         `SELECT id, order_id AS orderId, product_id AS productId, product_title AS productTitle,
                 product_image AS productImage, selected_variation AS selectedVariation,
-                quantity, unit_price AS unitPrice, line_total AS lineTotal
+                quantity, unit_price AS unitPrice, line_total AS lineTotal,
+                promo_code_used AS promoCodeUsed, discount_percent AS discountPercent,
+                discount_amount AS discountAmount,
+                CASE WHEN final_line_total > 0 THEN final_line_total ELSE line_total END AS finalLineTotal
          FROM order_items WHERE order_id = ?`
       )
       .all(r.id);

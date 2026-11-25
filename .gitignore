@@ -13,5 +13,4 @@ coverage/
 uploads/
 
 
-# Local Netlify folder
-.netlify
+.netlify/

@@ -150,6 +150,10 @@ export interface OrderItem {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  promoCodeUsed?: string | null;
+  discountPercent?: number;
+  discountAmount?: number;
+  finalLineTotal?: number;
 }
 
 export interface PaymentHistoryEntry {
@@ -275,16 +279,32 @@ export interface ProductReview {
 export interface PromoCode {
   id: number;
   code: string;
+  title: string;
+  campaignType: string;
   discountPercent: number;
+  appliesTo: 'all' | 'selected';
+  firstTimeOnly: boolean;
   startsAt: string;
   expiresAt: string;
   manuallyEnded: boolean;
-  effectiveStatus: 'Active' | 'Scheduled' | 'Expired' | 'Ended';
+  effectiveStatus: 'Active' | 'Scheduled' | 'Expired' | 'Deactivated';
+  sellerId: number;
+  sellerBusinessName?: string;
   createdByUserId: number;
   createdByName: string;
   createdByRole: UserRole;
   extensionCount: number;
+  productIds: number[];
+  products: Array<{
+    id: number;
+    title: string;
+    price: number;
+    published: boolean;
+  }>;
+  usageCount: number;
+  totalDiscountGranted: number;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface SellerPromotion {

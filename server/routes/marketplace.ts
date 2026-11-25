@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { db } from '../db.ts';
 import { sanitizeText } from '../security.ts';
+import { evaluateCartPromotions, normalizePromoCodesInput } from '../promoEngine.ts';
 
 export const marketplaceRouter = Router();
 
@@ -459,6 +460,7 @@ marketplaceRouter.get('/products', (req: Request, res: Response) => {
 
   return res.json({ products, suggestions: [], suggestionBasis: null });
 });
+
 marketplaceRouter.post('/cart-check', (req: Request, res: Response) => {
   const rawIds = Array.isArray(req.body?.productIds) ? req.body.productIds : [];
   const uniqueIds: number[] = Array.from(
@@ -708,46 +710,53 @@ marketplaceRouter.get('/sellers/:sellerUserId', (req: Request, res: Response) =>
 });
 
 marketplaceRouter.post('/promo/validate', (req: Request, res: Response) => {
-  const code = sanitizeText(req.body?.code, 40).toUpperCase();
-  if (!code) {
+  const codes = normalizePromoCodesInput(req.body?.codes, req.body?.code);
+  if (codes.length === 0) {
     return res.status(400).json({ error: 'Please enter a promotional code.' });
   }
 
-  const promo = db.prepare(`SELECT * FROM promo_codes WHERE UPPER(code) = ?`).get(code) as
-    | {
-        id: number;
-        code: string;
-        discount_percent: number;
-        starts_at: string;
-        expires_at: string;
-        manually_ended: number;
-      }
-    | undefined;
-
-  if (!promo) {
-    return res.status(404).json({ error: 'Promotional code not found.' });
+  const rawItems = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (rawItems.length === 0) {
+    return res.status(400).json({
+      error: 'Add products to your cart before applying a promotional code.',
+    });
   }
 
-  const now = Date.now();
-  const startsAt = new Date(promo.starts_at).getTime();
-  const expiresAt = new Date(promo.expires_at).getTime();
+  try {
+    const evaluation = evaluateCartPromotions({
+      items: rawItems,
+      promoCodes: codes,
+      buyerId: req.authUser?.id ?? null,
+      requireStock: false,
+    });
 
-  if (promo.manually_ended) {
-    return res.status(400).json({ error: 'This promotional code has been ended.' });
+    const primary = evaluation.appliedPromos[evaluation.appliedPromos.length - 1];
+    return res.json({
+      valid: true,
+      code: primary?.code || codes[0],
+      discountPercent: primary?.discountPercent || 0,
+      appliedPromos: evaluation.appliedPromos,
+      items: evaluation.items.map((it) => ({
+        productId: it.productId,
+        title: it.title,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        originalLineTotal: it.originalLineTotal,
+        appliedPromoCode: it.appliedPromoCode,
+        appliedPromoTitle: it.appliedPromoTitle,
+        discountPercent: it.discountPercent,
+        discountAmount: it.discountAmount,
+        finalLineTotal: it.finalLineTotal,
+      })),
+      subtotalAmount: evaluation.subtotalAmount,
+      discountAmount: evaluation.totalDiscountAmount,
+      finalTotalAmount: evaluation.finalTotalAmount,
+    });
+  } catch (err: any) {
+    return res.status(400).json({
+      error: err?.message || 'This promotional code is invalid or does not apply to your cart.',
+    });
   }
-  if (now < startsAt) {
-    return res.status(400).json({ error: 'This promotional code is not active yet.' });
-  }
-  if (now >= expiresAt) {
-    return res.status(400).json({ error: 'This promotional code has expired.' });
-  }
-
-  return res.json({
-    valid: true,
-    code: promo.code,
-    discountPercent: Number(promo.discount_percent),
-    expiresAt: promo.expires_at,
-  });
 });
 
 marketplaceRouter.get('/track/:reference', (req: Request, res: Response) => {

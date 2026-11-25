@@ -57,7 +57,7 @@ function buildOverviewData() {
     .all();
 
   const brevoConfigured = Boolean(process.env.BREVO_API_KEY?.trim());
-  const promoCreatorPolicy = getPlatformSetting('promo_creator_policy', 'buyer');
+  const promoCreatorPolicy = getPlatformSetting('promo_creator_policy', 'seller');
   const requireLoginEmailOtp = getPlatformSetting('require_login_email_otp', 'true') === 'true';
 
   return {

@@ -381,56 +381,88 @@ export function BuyerOrderDetailPage({ orderId, onNavigate }: BuyerOrderDetailPa
               Order Items ({order.items.length})
             </h2>
             <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
-              {order.items.map((item) => (
-                <div key={item.id} className="p-3.5 flex items-center gap-3.5 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => item.productId && onNavigate(`/product/${item.productId}`)}
-                    className="w-14 h-14 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 shrink-0"
-                  >
-                    {item.productImage ? (
-                      <SafeAssetImage
-                        src={item.productImage}
-                        alt={item.productTitle}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-400">
-                        Item
-                      </div>
-                    )}
-                  </button>
-                  <div className="min-w-0 flex-1">
+              {order.items.map((item) => {
+                const hasItemDiscount = Number(item.discountAmount || 0) > 0;
+                const finalItemTotal =
+                  typeof item.finalLineTotal === 'number'
+                    ? item.finalLineTotal
+                    : Math.max(0, item.lineTotal - Number(item.discountAmount || 0));
+                return (
+                  <div key={item.id} className="p-3.5 flex items-center gap-3.5 min-w-0">
                     <button
                       type="button"
                       onClick={() => item.productId && onNavigate(`/product/${item.productId}`)}
-                      className="text-sm font-semibold text-[#0B1F3A] hover:text-[#F97316] text-left break-words"
+                      className="w-14 h-14 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 shrink-0"
                     >
-                      {item.productTitle}
+                      {item.productImage ? (
+                        <SafeAssetImage
+                          src={item.productImage}
+                          alt={item.productTitle}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-400">
+                          Item
+                        </div>
+                      )}
                     </button>
-                    {item.selectedVariation && (
-                      <p className="text-xs text-slate-500 mt-0.5">Variation: {item.selectedVariation}</p>
-                    )}
-                    <p className="text-xs text-slate-600 mt-0.5 tabular-nums">
-                      Qty: {item.quantity} × GHS {item.unitPrice.toFixed(2)}
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        onClick={() => item.productId && onNavigate(`/product/${item.productId}`)}
+                        className="text-sm font-semibold text-[#0B1F3A] hover:text-[#F97316] text-left break-words"
+                      >
+                        {item.productTitle}
+                      </button>
+                      {item.selectedVariation && (
+                        <p className="text-xs text-slate-500 mt-0.5">Variation: {item.selectedVariation}</p>
+                      )}
+                      <p className="text-xs text-slate-600 mt-0.5 tabular-nums">
+                        Qty: {item.quantity} × GHS {item.unitPrice.toFixed(2)}
+                      </p>
+                      {hasItemDiscount ? (
+                        <p className="text-[11px] font-semibold text-emerald-700 mt-0.5 tabular-nums">
+                          Promo {item.promoCodeUsed || ''} ({item.discountPercent}% off: -GHS{' '}
+                          {Number(item.discountAmount).toFixed(2)})
+                        </p>
+                      ) : (
+                        order.discountAmount > 0 && (
+                          <p className="text-[11px] text-slate-500 mt-0.5">Standard price (no promo applied)</p>
+                        )
+                      )}
+                    </div>
+                    <div className="text-right shrink-0 whitespace-nowrap">
+                      {hasItemDiscount && (
+                        <span className="block font-mono text-[11px] text-slate-400 line-through tabular-nums">
+                          GHS {item.lineTotal.toFixed(2)}
+                        </span>
+                      )}
+                      <span className="font-mono text-sm font-bold text-[#0B1F3A] tabular-nums">
+                        GHS {finalItemTotal.toFixed(2)}
+                      </span>
+                    </div>
                   </div>
-                  <span className="font-mono text-sm font-bold text-[#0B1F3A] tabular-nums shrink-0 whitespace-nowrap">
-                    GHS {item.lineTotal.toFixed(2)}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="space-y-1.5 pt-1 text-xs text-slate-600">
               {order.discountAmount > 0 && (
                 <>
                   <div className="flex justify-between">
-                    <span>Subtotal</span>
+                    <span>Original Subtotal</span>
                     <span className="font-mono tabular-nums">GHS {order.subtotalAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-emerald-700 font-medium">
-                    <span>Promo Discount ({order.promoCodeUsed || `${order.discountPercent}%`})</span>
+                    <span>
+                      Promo Discount (
+                      {order.promoCodeUsed
+                        ? order.discountPercent > 0
+                          ? `${order.promoCodeUsed} · ${order.discountPercent}%`
+                          : order.promoCodeUsed
+                        : `${order.discountPercent}%`}
+                      )
+                    </span>
                     <span className="font-mono tabular-nums">-GHS {order.discountAmount.toFixed(2)}</span>
                   </div>
                 </>
