@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Bell, CheckCheck, Menu, Search, ShoppingBag, Volume2, VolumeX, X, LogOut, User } from 'lucide-react';
+import { Bell, CheckCheck, Menu, ShoppingBag, Volume2, VolumeX, X, LogOut, User } from 'lucide-react';
 import { AIDOMART_ASSETS } from '../constants/assets';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useNotifications } from '../context/NotificationsContext';
 import { apiRequest } from '../lib/api';
 import { getAccountDisplayName } from '../utils/greeting';
+import { InstantSearchBar } from './InstantSearchBar';
 
 interface NavbarProps {
   currentPath: string;
@@ -40,14 +41,17 @@ export function Navbar({ currentPath, onNavigate }: NavbarProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
-  const [navSearch, setNavSearch] = useState('');
 
-  const handleNavSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = navSearch.trim();
+  const navigateSearchResults = (q: string) => {
     setMobileMenuOpen(false);
     setNotifOpen(false);
     onNavigate(q ? `/shop?q=${encodeURIComponent(q)}` : '/shop');
+  };
+
+  const navigateSearchProduct = (productId: number) => {
+    setMobileMenuOpen(false);
+    setNotifOpen(false);
+    onNavigate(`/product/${productId}`);
   };
 
   const profileAvatarUrl =
@@ -142,17 +146,14 @@ export function Navbar({ currentPath, onNavigate }: NavbarProps) {
             })}
           </nav>
 
-          <form onSubmit={handleNavSearchSubmit} className="hidden lg:flex items-center relative w-52 xl:w-64">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" />
-            <input
-              type="search"
-              value={navSearch}
-              onChange={(e) => setNavSearch(e.target.value)}
+          <div className="hidden lg:block">
+            <InstantSearchBar
+              variant="navbar"
               placeholder="Search products, size, color..."
-              aria-label="Search AIDOMART"
-              className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white/10 border border-white/15 text-xs text-white placeholder:text-slate-300 focus:outline-none focus:bg-white focus:text-slate-900 focus:placeholder:text-slate-400 transition-colors"
+              onSubmitSearch={navigateSearchResults}
+              onSelectProduct={navigateSearchProduct}
             />
-          </form>
+          </div>
         </div>
 
         {/* Zone 3: Functional Cart & Account Controls */}
@@ -381,24 +382,14 @@ export function Navbar({ currentPath, onNavigate }: NavbarProps) {
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-[#122E53] border-t border-white/10 px-4 py-4 space-y-2">
-          <form onSubmit={handleNavSearchSubmit} className="flex gap-2 pb-2">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="search"
-                value={navSearch}
-                onChange={(e) => setNavSearch(e.target.value)}
-                placeholder="Search products or sellers..."
-                className="w-full pl-9 pr-3 py-2 rounded-lg bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#F97316]"
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-3.5 py-2 rounded-lg bg-[#F97316] text-white text-xs font-semibold shrink-0"
-            >
-              Search
-            </button>
-          </form>
+          <div className="pb-2">
+            <InstantSearchBar
+              variant="mobile-nav"
+              placeholder="Search products or sellers..."
+              onSubmitSearch={navigateSearchResults}
+              onSelectProduct={navigateSearchProduct}
+            />
+          </div>
           {navLinks.map((link) => {
             const active = currentPath === link.path;
             return (

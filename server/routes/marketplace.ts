@@ -155,11 +155,260 @@ marketplaceRouter.get('/categories', (_req: Request, res: Response) => {
   return res.json({ categories });
 });
 
+const SEARCH_STOP_WORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'by',
+  'for',
+  'from',
+  'in',
+  'of',
+  'on',
+  'or',
+  'the',
+  'to',
+  'with',
+]);
+
+const KEYWORD_CATEGORY_HINTS: Array<{ keywords: string[]; slugs: string[] }> = [
+  {
+    keywords: [
+      'iphone',
+      'ipad',
+      'samsung',
+      'galaxy',
+      'pixel',
+      'tecno',
+      'infinix',
+      'redmi',
+      'xiaomi',
+      'huawei',
+      'nokia',
+      'oppo',
+      'vivo',
+      'oneplus',
+      'smartphone',
+      'phone',
+      'tablet',
+      'charger',
+      'powerbank',
+      'earbud',
+      'airpod',
+      'headphone',
+      'speaker',
+      'bluetooth',
+      'tv',
+      'camera',
+      'console',
+      'playstation',
+      'xbox',
+    ],
+    slugs: ['phones-tablets', 'electronics'],
+  },
+  {
+    keywords: ['laptop', 'macbook', 'notebook', 'dell', 'hp', 'lenovo', 'asus', 'acer', 'monitor', 'keyboard', 'mouse', 'desktop', 'computer', 'pc', 'ssd'],
+    slugs: ['computers-laptops', 'electronics'],
+  },
+  {
+    keywords: ['watch', 'smartwatch', 'rolex', 'casio', 'seiko', 'omega', 'chronograph', 'timepiece', 'wrist'],
+    slugs: ['watches'],
+  },
+  {
+    keywords: ['sneaker', 'trainer', 'jordan', 'nike', 'adidas', 'yeezy', 'puma', 'converse', 'vans', 'runner', 'kicks'],
+    slugs: ['sneakers', 'shoes'],
+  },
+  {
+    keywords: ['shoe', 'loafer', 'sandal', 'boot', 'heel', 'slipper', 'slide', 'footwear', 'oxford'],
+    slugs: ['shoes', 'sneakers'],
+  },
+  {
+    keywords: ['shirt', 'tshirt', 'tee', 'polo', 'hoodie', 'sweater', 'jacket', 'coat', 'blazer', 'suit', 'dress', 'skirt', 'jean', 'trouser', 'pant', 'short', 'top', 'cloth', 'apparel', 'outfit', 'wear'],
+    slugs: ['clothing'],
+  },
+  {
+    keywords: ['bag', 'backpack', 'handbag', 'tote', 'purse', 'clutch', 'suitcase', 'luggage', 'wallet', 'belt', 'eyewear', 'sunglass', 'glasses', 'cap', 'hat'],
+    slugs: ['bags-luggage', 'accessories'],
+  },
+  {
+    keywords: ['ring', 'necklace', 'bracelet', 'earring', 'chain', 'pendant', 'anklet', 'gold', 'silver', 'jewelry', 'jewellery'],
+    slugs: ['jewelry', 'accessories'],
+  },
+  {
+    keywords: ['perfume', 'cologne', 'fragrance', 'skincare', 'cream', 'lotion', 'serum', 'makeup', 'lipstick', 'foundation', 'cosmetic', 'wig', 'hair'],
+    slugs: ['beauty-cosmetics', 'health-wellness'],
+  },
+  {
+    keywords: ['blender', 'kettle', 'microwave', 'cooker', 'pot', 'pan', 'kitchen', 'bedding', 'sheet', 'pillow', 'lamp', 'decor', 'sofa', 'chair', 'table', 'desk', 'furniture'],
+    slugs: ['home-kitchen', 'furniture'],
+  },
+  {
+    keywords: ['gym', 'dumbbell', 'yoga', 'bicycle', 'bike', 'fitness', 'sport', 'jersey', 'football', 'vitamin', 'supplement', 'wellness'],
+    slugs: ['sports-outdoors', 'health-wellness'],
+  },
+];
+
+function extractSearchTerms(rawQuery: string): string[] {
+  const parts = rawQuery
+    .toLowerCase()
+    .split(/[\s,+/|]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  const unique: string[] = [];
+  for (const part of parts) {
+    if (!unique.includes(part)) {
+      unique.push(part);
+    }
+    if (unique.length >= 6) break;
+  }
+  return unique;
+}
+
+function buildStemmedTermVariants(term: string): string[] {
+  const variants = [term];
+  if (term.length > 4 && term.endsWith('ies')) {
+    variants.push(`${term.slice(0, -3)}y`);
+  } else if (term.length > 4 && term.endsWith('es')) {
+    variants.push(term.slice(0, -2));
+  } else if (term.length > 3 && term.endsWith('s')) {
+    variants.push(term.slice(0, -1));
+  }
+  return variants;
+}
+
+function findRelevantAlternatives(
+  rawQuery: string,
+  categoryFilter: string,
+  sellerId: number | null,
+  maxSuggestions: number
+): { suggestions: ReturnType<typeof formatProductRow>[]; suggestionBasis: 'related_terms' | 'related_category' | null } {
+  const rawTerms = extractSearchTerms(rawQuery);
+  const meaningfulTerms = rawTerms.filter((t) => t.length >= 2 && !SEARCH_STOP_WORDS.has(t));
+  const candidateRows: Array<{ row: Record<string, any>; score: number }> = [];
+  const usedIds = new Set<number>();
+
+  // Tier 1: Genuine published inventory matching at least one meaningful search term (or stemmed variant)
+  if (meaningfulTerms.length > 0) {
+    const tokenVariants = Array.from(new Set(meaningfulTerms.flatMap(buildStemmedTermVariants)));
+    const likeClauses: string[] = [];
+    const likeParams: any[] = [];
+    for (const token of tokenVariants) {
+      const pattern = `%${token}%`;
+      likeClauses.push(
+        `(LOWER(p.title) LIKE ? OR LOWER(p.description) LIKE ? OR LOWER(c.name) LIKE ? OR LOWER(p.variations_json) LIKE ? OR LOWER(p.colors_json) LIKE ? OR LOWER(p.sizes_json) LIKE ?)`
+      );
+      likeParams.push(pattern, pattern, pattern, pattern, pattern, pattern);
+    }
+
+    let tier1Sql = `${PRODUCT_BASE_SELECT} AND p.stock > 0`;
+    const tier1Params: any[] = [];
+    if (sellerId && Number.isFinite(sellerId)) {
+      tier1Sql += ` AND p.seller_id = ?`;
+      tier1Params.push(sellerId);
+    }
+    tier1Sql += ` AND (${likeClauses.join(' OR ')}) ORDER BY p.created_at DESC LIMIT 40`;
+    const matchedRows = db.prepare(tier1Sql).all(...tier1Params, ...likeParams) as Record<string, any>[];
+
+    for (const row of matchedRows) {
+      const titleLower = String(row.title || '').toLowerCase();
+      const descLower = String(row.description || '').toLowerCase();
+      const catLower = String(row.category_name || '').toLowerCase();
+      const extraLower = `${row.variations_json || ''} ${row.colors_json || ''} ${row.sizes_json || ''}`.toLowerCase();
+
+      let score = 0;
+      for (const token of tokenVariants) {
+        if (titleLower.includes(token)) score += 10;
+        if (catLower.includes(token)) score += 5;
+        if (descLower.includes(token) || extraLower.includes(token)) score += 3;
+      }
+      if (categoryFilter && row.category_slug === categoryFilter) {
+        score += 4;
+      }
+      if (score > 0) {
+        candidateRows.push({ row, score });
+      }
+    }
+
+    candidateRows.sort((a, b) => b.score - a.score || Number(b.row.id) - Number(a.row.id));
+  }
+
+  const suggestions: ReturnType<typeof formatProductRow>[] = [];
+  for (const item of candidateRows.slice(0, maxSuggestions)) {
+    usedIds.add(Number(item.row.id));
+    suggestions.push(formatProductRow(item.row));
+  }
+
+  const hasTier1 = suggestions.length > 0;
+
+  // Tier 2: Fill remaining slots from genuinely relevant categories only (no unrelated filler)
+  if (suggestions.length < maxSuggestions) {
+    const matchedSlugs = new Set<string>();
+    if (categoryFilter) {
+      matchedSlugs.add(categoryFilter);
+    }
+
+    const qLower = rawQuery.toLowerCase();
+    for (const hint of KEYWORD_CATEGORY_HINTS) {
+      if (
+        hint.keywords.some(
+          (kw) => qLower.includes(kw) || meaningfulTerms.some((t) => kw.includes(t) && t.length >= 3)
+        )
+      ) {
+        for (const slug of hint.slugs) {
+          matchedSlugs.add(slug);
+        }
+      }
+    }
+
+    if (meaningfulTerms.length > 0) {
+      const activeCats = db
+        .prepare(`SELECT slug, name, description FROM categories WHERE active = 1`)
+        .all() as Array<{ slug: string; name: string; description: string }>;
+      for (const cat of activeCats) {
+        const hay = `${cat.name} ${cat.description}`.toLowerCase();
+        if (meaningfulTerms.some((t) => hay.includes(t))) {
+          matchedSlugs.add(cat.slug);
+        }
+      }
+    }
+
+    if (matchedSlugs.size > 0) {
+      const slugList = Array.from(matchedSlugs);
+      const placeholders = slugList.map(() => '?').join(',');
+      let tier2Sql = `${PRODUCT_BASE_SELECT} AND p.stock > 0 AND c.slug IN (${placeholders})`;
+      const tier2Params: any[] = [...slugList];
+      if (sellerId && Number.isFinite(sellerId)) {
+        tier2Sql += ` AND p.seller_id = ?`;
+        tier2Params.push(sellerId);
+      }
+      tier2Sql += ` ORDER BY p.created_at DESC LIMIT 24`;
+
+      const catRows = db.prepare(tier2Sql).all(...tier2Params) as Record<string, any>[];
+      for (const row of catRows) {
+        if (suggestions.length >= maxSuggestions) break;
+        const id = Number(row.id);
+        if (!usedIds.has(id)) {
+          usedIds.add(id);
+          suggestions.push(formatProductRow(row));
+        }
+      }
+    }
+  }
+
+  return {
+    suggestions,
+    suggestionBasis: suggestions.length === 0 ? null : hasTier1 ? 'related_terms' : 'related_category',
+  };
+}
+
 marketplaceRouter.get('/products', (req: Request, res: Response) => {
   const q = sanitizeText(req.query.q, 120);
   const category = sanitizeText(req.query.category, 80);
   const sellerId = req.query.sellerId ? Number(req.query.sellerId) : null;
   const sort = sanitizeText(req.query.sort, 30);
+  const rawLimit = req.query.limit ? Number(req.query.limit) : 0;
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 60) : 0;
 
   const params: any[] = [];
   let sql = `${PRODUCT_BASE_SELECT}`;
@@ -172,14 +421,11 @@ marketplaceRouter.get('/products', (req: Request, res: Response) => {
     sql += ` AND p.seller_id = ?`;
     params.push(sellerId);
   }
-  if (q) {
-    const terms = q
-      .split(/\s+/)
-      .map((t) => t.trim())
-      .filter(Boolean)
-      .slice(0, 5);
-    for (const term of terms) {
-      sql += ` AND (p.title LIKE ? OR p.description LIKE ? OR sp.business_name LIKE ? OR c.name LIKE ? OR p.sizes_json LIKE ? OR p.colors_json LIKE ? OR p.variations_json LIKE ? OR sp.location_city LIKE ?)`;
+
+  const searchTerms = q ? extractSearchTerms(q).slice(0, 5) : [];
+  if (searchTerms.length > 0) {
+    for (const term of searchTerms) {
+      sql += ` AND (LOWER(p.title) LIKE ? OR LOWER(p.description) LIKE ? OR LOWER(sp.business_name) LIKE ? OR LOWER(c.name) LIKE ? OR LOWER(p.sizes_json) LIKE ? OR LOWER(p.colors_json) LIKE ? OR LOWER(p.variations_json) LIKE ? OR LOWER(sp.location_city) LIKE ?)`;
       const pattern = `%${term}%`;
       params.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern);
     }
@@ -189,14 +435,30 @@ marketplaceRouter.get('/products', (req: Request, res: Response) => {
     sql += ` ORDER BY p.price ASC`;
   } else if (sort === 'price_desc') {
     sql += ` ORDER BY p.price DESC`;
+  } else if (q && searchTerms.length > 0) {
+    const titleAllTermsSql = searchTerms.map(() => `LOWER(p.title) LIKE ?`).join(' AND ');
+    sql += ` ORDER BY CASE WHEN LOWER(p.title) LIKE ? THEN 0 WHEN (${titleAllTermsSql}) THEN 1 ELSE 2 END, CASE WHEN p.stock > 0 THEN 0 ELSE 1 END, p.created_at DESC`;
+    params.push(`%${q.toLowerCase()}%`, ...searchTerms.map((t) => `%${t}%`));
   } else {
     sql += ` ORDER BY p.created_at DESC`;
   }
 
-  const rows = db.prepare(sql).all(...params) as Record<string, any>[];
-  return res.json({ products: rows.map(formatProductRow) });
-});
+  if (limit > 0) {
+    sql += ` LIMIT ?`;
+    params.push(limit);
+  }
 
+  const rows = db.prepare(sql).all(...params) as Record<string, any>[];
+  const products = rows.map(formatProductRow);
+
+  if (q && products.length === 0) {
+    const altLimit = limit > 0 ? Math.min(limit, 8) : 8;
+    const { suggestions, suggestionBasis } = findRelevantAlternatives(q, category, sellerId, altLimit);
+    return res.json({ products, suggestions, suggestionBasis });
+  }
+
+  return res.json({ products, suggestions: [], suggestionBasis: null });
+});
 marketplaceRouter.post('/cart-check', (req: Request, res: Response) => {
   const rawIds = Array.isArray(req.body?.productIds) ? req.body.productIds : [];
   const uniqueIds: number[] = Array.from(
