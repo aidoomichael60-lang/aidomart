@@ -1,10 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { apiRequest, setCsrfToken } from '../lib/api';
+import { configureAnalytics } from '../lib/analytics';
 import type { AuthUser } from '../types/marketplace';
 
 interface PlatformSettings {
   promoCreatorPolicy: 'buyer' | 'seller' | 'both';
   requireLoginEmailOtp: boolean;
+  gaMeasurementId?: string;
 }
 
 interface AuthContextValue {
@@ -21,9 +23,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [settings, setSettings] = useState<PlatformSettings>({
-    promoCreatorPolicy: 'seller',
-    requireLoginEmailOtp: true,
+  const [settings, setSettings] = useState<PlatformSettings>(() => {
+    const initialGa = configureAnalytics(import.meta.env.VITE_GA_MEASUREMENT_ID) || '';
+    return {
+      promoCreatorPolicy: 'seller',
+      requireLoginEmailOtp: true,
+      gaMeasurementId: initialGa,
+    };
   });
 
   const refreshUser = useCallback(async () => {
@@ -35,7 +41,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }>('/api/auth/me');
       setUser(data.user);
       setCsrfToken(data.csrfToken);
-      if (data.settings) setSettings(data.settings);
+      if (data.settings) {
+        setSettings(data.settings);
+        configureAnalytics(data.settings.gaMeasurementId);
+      }
     } catch (err: any) {
       // Only clear auth state if server explicitly indicates unauthorized/forbidden, not transient network blips
       if (err?.status === 401 || err?.status === 403) {
@@ -50,6 +59,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     refreshUser();
   }, [refreshUser]);
+
+  useEffect(() => {
+    configureAnalytics(settings.gaMeasurementId);
+  }, [settings.gaMeasurementId]);
 
   const setAuthenticatedUser = useCallback((nextUser: AuthUser | null, csrf: string | null) => {
     setUser(nextUser);

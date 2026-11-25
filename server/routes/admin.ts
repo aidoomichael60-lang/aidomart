@@ -59,6 +59,10 @@ function buildOverviewData() {
   const brevoConfigured = Boolean(process.env.BREVO_API_KEY?.trim());
   const promoCreatorPolicy = getPlatformSetting('promo_creator_policy', 'seller');
   const requireLoginEmailOtp = getPlatformSetting('require_login_email_otp', 'true') === 'true';
+  const storedGaId = getPlatformSetting('ga_measurement_id', '').trim().toUpperCase();
+  const envGaId = (process.env.VITE_GA_MEASUREMENT_ID || process.env.GA_MEASUREMENT_ID || '')
+    .trim()
+    .toUpperCase();
 
   return {
     counts,
@@ -68,6 +72,8 @@ function buildOverviewData() {
       brevoConfigured,
       promoCreatorPolicy,
       requireLoginEmailOtp,
+      gaMeasurementId: storedGaId || envGaId || 'G-SDH8TNSES3',
+      gaMeasurementSource: storedGaId ? 'admin' : envGaId ? 'env' : 'default',
     },
   };
 }
@@ -264,6 +270,7 @@ adminRouter.get('/overview', (_req: Request, res: Response) => {
 adminRouter.put('/settings', (req: Request, res: Response) => {
   const promoCreatorPolicy = sanitizeText(req.body?.promoCreatorPolicy, 20);
   const requireLoginEmailOtp = req.body?.requireLoginEmailOtp;
+  const hasGaMeasurementId = Object.prototype.hasOwnProperty.call(req.body || {}, 'gaMeasurementId');
 
   if (promoCreatorPolicy && ['buyer', 'seller', 'both'].includes(promoCreatorPolicy)) {
     db.prepare(
@@ -276,6 +283,18 @@ adminRouter.put('/settings', (req: Request, res: Response) => {
       `INSERT INTO platform_settings (key, value, updated_at) VALUES ('require_login_email_otp', ?, datetime('now'))
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
     ).run(requireLoginEmailOtp ? 'true' : 'false');
+  }
+  if (hasGaMeasurementId) {
+    const rawGa = sanitizeText(req.body?.gaMeasurementId, 40).toUpperCase();
+    if (rawGa !== '' && !/^G-[A-Z0-9]{4,20}$/.test(rawGa)) {
+      return res.status(400).json({
+        error: 'Enter a valid GA4 Measurement ID formatted like G-XXXXXXXXXX, or leave blank to disable.',
+      });
+    }
+    db.prepare(
+      `INSERT INTO platform_settings (key, value, updated_at) VALUES ('ga_measurement_id', ?, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+    ).run(rawGa);
   }
 
   return res.json({ message: 'Platform settings updated.' });

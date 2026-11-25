@@ -535,6 +535,7 @@ export function initDatabase() {
   insertSetting.run('promo_creator_policy', 'seller');
   db.prepare(`UPDATE platform_settings SET value = 'seller' WHERE key = 'promo_creator_policy' AND value = 'buyer'`).run();
   insertSetting.run('require_login_email_otp', 'true');
+  insertSetting.run('ga_measurement_id', '');
 
   // Enforce strict single-Administrator invariant (aidoomichael60@gmail.com only)
   db.prepare(`UPDATE users SET role = 'buyer' WHERE role = 'admin' AND LOWER(email) != ?`).run(

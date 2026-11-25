@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, MapPin, MessageSquare, Pencil, Send, ShoppingCart, Star, Store, X, ZoomIn } from 'lucide-react';
 import { apiRequest, subscribeDataChanged } from '../lib/api';
+import { trackViewItem } from '../lib/analytics';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import type { Product, ProductReview } from '../types/marketplace';
@@ -28,6 +29,7 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const lastViewedProductId = useRef<number | null>(null);
 
   const colorSwatchClass = (colorName: string) => {
     const c = colorName.trim().toLowerCase();
@@ -72,6 +74,10 @@ export function ProductDetailPage({ productId, onNavigate }: ProductDetailPagePr
         eligibleOrderId: number | null;
       }>(`/api/marketplace/products/${productId}`);
       setProduct(data.product);
+      if (data.product && lastViewedProductId.current !== data.product.id) {
+        lastViewedProductId.current = data.product.id;
+        trackViewItem(data.product);
+      }
       setReviews(data.reviews || []);
       setEligibleOrderId(data.eligibleOrderId);
       const sizes = data.product.sizes || [];

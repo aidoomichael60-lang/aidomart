@@ -17,6 +17,7 @@ import {
   Users,
 } from 'lucide-react';
 import { apiRequest } from '../lib/api';
+import { configureAnalytics } from '../lib/analytics';
 import { useAuth } from '../context/AuthContext';
 import type { AuthUser } from '../types/marketplace';
 import { VerifiedBadge } from '../components/VerifiedBadge';
@@ -92,6 +93,8 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
   >({});
   const [statusBanner, setStatusBanner] = useState('');
   const [errorBanner, setErrorBanner] = useState('');
+  const [gaMeasurementIdInput, setGaMeasurementIdInput] = useState('');
+  const [savingGaSetting, setSavingGaSetting] = useState(false);
 
   // Seller review state per profileId
   const [reviewForms, setReviewForms] = useState<
@@ -141,6 +144,9 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
       }>(`/api/admin/bootstrap${qs}`);
 
       setOverview(boot.overview || null);
+      if (boot.overview?.settings) {
+        setGaMeasurementIdInput(boot.overview.settings.gaMeasurementId || '');
+      }
       const sellerRows = boot.sellers || [];
       setSellers(sellerRows);
       const initForms: typeof reviewForms = {};
@@ -542,6 +548,95 @@ export function AdminDashboard({ initialQuery }: AdminDashboardProps) {
                   <span>Require email OTP verification on Buyer & Seller logins</span>
                 </label>
               </div>
+            </div>
+
+            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-bold text-[#0B1F3A]">Google Analytics 4 (GA4) Integration</p>
+                <span
+                  className={`px-2 py-0.5 rounded font-semibold ${
+                    overview.settings.gaMeasurementId
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {overview.settings.gaMeasurementId
+                    ? `Active (${overview.settings.gaMeasurementId})`
+                    : 'Not Configured'}
+                </span>
+              </div>
+              <p className="text-slate-600">
+                Enter your Google Analytics 4 Measurement ID (formatted like <code className="font-mono">G-XXXXXXXXXX</code>) to automatically track page views, searches, product views, cart additions, and completed purchases across AIDOMART.
+              </p>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setSavingGaSetting(true);
+                  try {
+                    const cleaned = gaMeasurementIdInput.trim().toUpperCase();
+                    await apiRequest('/api/admin/settings', {
+                      method: 'PUT',
+                      body: { gaMeasurementId: cleaned },
+                    });
+                    configureAnalytics(cleaned);
+                    await loadAdminData({ preserveBanner: true });
+                    await refreshUser();
+                    showSuccess(
+                      cleaned
+                        ? `Google Analytics (${cleaned}) is now active across AIDOMART.`
+                        : 'Google Analytics disabled.'
+                    );
+                  } catch (err: any) {
+                    showError(err?.message || 'Could not update Google Analytics Measurement ID.');
+                  } finally {
+                    setSavingGaSetting(false);
+                  }
+                }}
+                className="flex flex-col sm:flex-row gap-2 pt-1"
+              >
+                <input
+                  type="text"
+                  value={gaMeasurementIdInput}
+                  onChange={(e) => setGaMeasurementIdInput(e.target.value)}
+                  placeholder="G-XXXXXXXXXX"
+                  maxLength={40}
+                  className="flex-1 min-w-0 sm:max-w-xs px-3 py-2 border border-slate-300 rounded-lg bg-white font-mono text-xs uppercase"
+                />
+                <button
+                  type="submit"
+                  disabled={savingGaSetting}
+                  className="px-4 py-2 rounded-lg bg-[#0B1F3A] hover:bg-[#132f57] disabled:opacity-60 text-white font-semibold whitespace-nowrap"
+                >
+                  {savingGaSetting ? 'Saving...' : 'Save Measurement ID'}
+                </button>
+                {overview.settings.gaMeasurementId && (
+                  <button
+                    type="button"
+                    disabled={savingGaSetting}
+                    onClick={async () => {
+                      setSavingGaSetting(true);
+                      try {
+                        await apiRequest('/api/admin/settings', {
+                          method: 'PUT',
+                          body: { gaMeasurementId: '' },
+                        });
+                        setGaMeasurementIdInput('');
+                        configureAnalytics('');
+                        await loadAdminData({ preserveBanner: true });
+                        await refreshUser();
+                        showSuccess('Google Analytics Measurement ID cleared.');
+                      } catch (err: any) {
+                        showError(err?.message || 'Could not clear Google Analytics Measurement ID.');
+                      } finally {
+                        setSavingGaSetting(false);
+                      }
+                    }}
+                    className="px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold whitespace-nowrap"
+                  >
+                    Disable
+                  </button>
+                )}
+              </form>
             </div>
           </div>
 

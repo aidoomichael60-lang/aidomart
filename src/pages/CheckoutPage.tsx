@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Lock, Tag, X } from 'lucide-react';
 import { apiRequest } from '../lib/api';
+import { trackBeginCheckout, trackPurchase } from '../lib/analytics';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 
@@ -47,9 +48,18 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
     refreshAvailability,
   } = useCart();
 
+  const beginCheckoutTrackedRef = useRef(false);
+
   useEffect(() => {
     refreshAvailability();
   }, [refreshAvailability]);
+
+  useEffect(() => {
+    if (!beginCheckoutTrackedRef.current && items.length > 0) {
+      beginCheckoutTrackedRef.current = true;
+      trackBeginCheckout(items, subtotal);
+    }
+  }, [items, subtotal]);
 
   const [fulfillmentMethod, setFulfillmentMethod] = useState<'Delivery' | 'Pickup'>('Delivery');
   const [buyerPhone, setBuyerPhone] = useState(user?.phone || '');
@@ -230,7 +240,22 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
           promoCodes: appliedCodes,
         },
       });
-      setCreatedOrders(res.orders || []);
+      const placed = res.orders || [];
+      setCreatedOrders(placed);
+      if (placed.length > 0) {
+        const totalPaid = placed.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+        trackPurchase({
+          transactionId: placed.map((o) => o.orderReference).join(','),
+          value: totalPaid,
+          coupon: appliedCodes.join(', ') || undefined,
+          items: items.map((it) => ({
+            id: it.product.id,
+            title: it.product.title,
+            price: it.product.price,
+            quantity: it.quantity,
+          })),
+        });
+      }
       clearCart();
     } catch (err: any) {
       setError(err.message || 'Unable to place order.');

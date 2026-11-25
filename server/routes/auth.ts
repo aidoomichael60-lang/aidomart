@@ -260,12 +260,17 @@ async function recordLoginDeviceAndNotify(
 authRouter.get('/me', (req: Request, res: Response) => {
   const promoCreatorPolicy = getPlatformSetting('promo_creator_policy', 'seller');
   const requireLoginEmailOtp = getPlatformSetting('require_login_email_otp', 'true') === 'true';
+  const storedGaId = getPlatformSetting('ga_measurement_id', '').trim().toUpperCase();
+  const envGaId = (process.env.VITE_GA_MEASUREMENT_ID || process.env.GA_MEASUREMENT_ID || '')
+    .trim()
+    .toUpperCase();
+  const gaMeasurementId = storedGaId || envGaId || 'G-SDH8TNSES3';
 
   if (!req.authUser) {
     return res.json({
       user: null,
       csrfToken: null,
-      settings: { promoCreatorPolicy, requireLoginEmailOtp },
+      settings: { promoCreatorPolicy, requireLoginEmailOtp, gaMeasurementId },
     });
   }
 
@@ -285,7 +290,7 @@ authRouter.get('/me', (req: Request, res: Response) => {
   return res.json({
     user: { ...req.authUser, sellerProfile },
     csrfToken: req.csrfToken,
-    settings: { promoCreatorPolicy, requireLoginEmailOtp },
+    settings: { promoCreatorPolicy, requireLoginEmailOtp, gaMeasurementId },
   });
 });
 

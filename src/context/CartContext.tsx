@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest, subscribeDataChanged } from '../lib/api';
+import { trackAddToCart } from '../lib/analytics';
 import type { CartItem, Product } from '../types/marketplace';
 
 interface CartCheckResultItem {
@@ -169,6 +170,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const addToCart = (product: Product, quantity = 1, selectedVariation = '') => {
     if (product.stock <= 0) return;
+    const addedQty = Math.min(product.stock, Math.max(1, quantity));
     setItems((prev) => {
       const idx = prev.findIndex(
         (it) => it.product.id === product.id && it.selectedVariation === selectedVariation
@@ -189,11 +191,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         {
           product,
-          quantity: Math.min(product.stock, Math.max(1, quantity)),
+          quantity: addedQty,
           selectedVariation,
         },
       ];
     });
+    trackAddToCart(product, addedQty);
     setDrawerOpen(true);
   };
 

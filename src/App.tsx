@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { trackPageView } from './lib/analytics';
 import { CartProvider } from './context/CartContext';
 import { NotificationsProvider } from './context/NotificationsContext';
 import { Navbar } from './components/Navbar';
@@ -21,6 +22,7 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { TrackOrderPage } from './pages/TrackOrderPage';
 
 function AppShell() {
+  const { settings } = useAuth();
   const [locationUrl, setLocationUrl] = useState(() => window.location.pathname + window.location.search);
 
   useEffect(() => {
@@ -30,6 +32,10 @@ function AppShell() {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+
+  useEffect(() => {
+    trackPageView(locationUrl);
+  }, [locationUrl, settings.gaMeasurementId]);
 
   const navigate = useCallback((to: string) => {
     const [pathOnly] = to.split('#');

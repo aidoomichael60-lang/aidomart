@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight, Search, Store } from 'lucide-react';
 import { apiRequest, subscribeDataChanged } from '../lib/api';
+import { trackSearch } from '../lib/analytics';
 import type { MarketplaceCategory, Product } from '../types/marketplace';
 import { ProductCard } from '../components/ProductCard';
 import { SafeAssetImage } from '../components/SafeAssetImage';
@@ -32,6 +33,7 @@ export function ShopPage({ initialCategory = '', initialQuery = '', onNavigate }
   const [sort, setSort] = useState('newest');
   const [loading, setLoading] = useState(true);
   const hasLoadedOnce = useRef(false);
+  const lastTrackedQuery = useRef('');
 
   useEffect(() => {
     setSelectedCategory(initialCategory);
@@ -96,7 +98,12 @@ export function ShopPage({ initialCategory = '', initialQuery = '', onNavigate }
 
   useEffect(() => {
     loadProducts();
-  }, [loadProducts]);
+    const q = debouncedQuery.trim();
+    if (q && lastTrackedQuery.current !== q) {
+      lastTrackedQuery.current = q;
+      trackSearch(q);
+    }
+  }, [loadProducts, debouncedQuery]);
 
   useEffect(() => {
     return subscribeDataChanged(() => {
